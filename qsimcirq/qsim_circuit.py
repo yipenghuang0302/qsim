@@ -131,6 +131,8 @@ class QSimCircuit(cirq.Circuit):
         elif isinstance(op.gate, cirq.ops.identity.IdentityGate) \
                 and op.gate.num_qubits() == 2:  # cirq version >=0.7
           qsim_gate = "id2"
+        elif isinstance(op.gate, cirq.ops.MeasurementGate):
+          continue
         else:
           raise ValueError("{!r} No translation for ".format(op))
 
