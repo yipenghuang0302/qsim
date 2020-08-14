@@ -74,8 +74,8 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
 
     def measure_or_mixture(op):
         return protocols.is_measurement(op) or protocols.has_mixture(op)
-    if circuit.are_all_matches_terminal(measure_or_mixture):
-        return self._run_sweep_sample(resolved_circuit, repetitions)
+    # if circuit.are_all_matches_terminal(measure_or_mixture):
+    return self._run_sweep_sample(resolved_circuit, repetitions)
     raise ValueError('QSimCircuit cannot handle non-terminal measurements.')
 
   def _run_sweep_sample(
