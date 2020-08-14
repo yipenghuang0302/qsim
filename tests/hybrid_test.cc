@@ -20,18 +20,18 @@
 #include "gtest/gtest.h"
 
 #include "../lib/circuit_qsim_parser.h"
+#include "../lib/formux.h"
 #include "../lib/fuser_basic.h"
 #include "../lib/gates_qsim.h"
 #include "../lib/hybrid.h"
 #include "../lib/io.h"
-#include "../lib/parfor.h"
-#include "../lib/simulator_avx.h"
+#include "../lib/simmux.h"
 
 namespace qsim {
 
 constexpr char provider[] = "hybrid_test";
 
-TEST(QSimRunner, Hybrid2) {
+TEST(HybridTest, Hybrid2) {
   constexpr char circuit_string[] =
 R"(2
 0 h 0
@@ -56,37 +56,39 @@ R"(2
 12 cz 0 1
 13 x_1_2 0
 13 y_1_2 1
+14 sw 0 1
 )";
 
   std::stringstream ss(circuit_string);
   Circuit<GateQSim<float>> circuit;
 
-  EXPECT_EQ(CircuitQsimParser<IO>::FromStream(99, provider, ss, circuit), true);
+  EXPECT_TRUE(CircuitQsimParser<IO>::FromStream(99, provider, ss, circuit));
   EXPECT_EQ(circuit.num_qubits, 2);
-  EXPECT_EQ(circuit.gates.size(), 22);
+  EXPECT_EQ(circuit.gates.size(), 23);
 
-  using Simulator = SimulatorAVX<ParallelFor>;
+  using Simulator = Simulator<For>;
   using HybridSimulator = HybridSimulator<IO, GateQSim<float>, BasicGateFuser,
-                                          Simulator, ParallelFor>;
+                                          Simulator, For>;
   using Fuser = HybridSimulator::Fuser;
 
   std::vector<unsigned> parts = {0, 1};
 
-  auto hd = HybridSimulator::SplitLattice(parts, circuit.gates);
+  HybridSimulator::HybridData hd;
+  EXPECT_TRUE(HybridSimulator::SplitLattice(parts, circuit.gates, hd));
 
-  EXPECT_EQ(hd.gates0.size(), 14);
-  EXPECT_EQ(hd.gates1.size(), 14);
-  EXPECT_EQ(hd.gatexs.size(), 6);
+  EXPECT_EQ(hd.gates0.size(), 15);
+  EXPECT_EQ(hd.gates1.size(), 15);
+  EXPECT_EQ(hd.gatexs.size(), 7);
   EXPECT_EQ(hd.qubit_map.size(), 2);
   EXPECT_EQ(hd.num_qubits0, 1);
   EXPECT_EQ(hd.num_qubits1, 1);
-  EXPECT_EQ(hd.num_gatexs, 6);
+  EXPECT_EQ(hd.num_gatexs, 7);
 
-  auto fgates0 = Fuser::FuseGates(hd.num_qubits0, hd.gates0, 99);
-  auto fgates1 = Fuser::FuseGates(hd.num_qubits1, hd.gates1, 99);
+  auto fgates0 = Fuser::FuseGates(hd.num_qubits0, hd.gates0);
+  auto fgates1 = Fuser::FuseGates(hd.num_qubits1, hd.gates1);
 
-  EXPECT_EQ(fgates0.size(), 6);
-  EXPECT_EQ(fgates1.size(), 6);
+  EXPECT_EQ(fgates0.size(), 7);
+  EXPECT_EQ(fgates1.size(), 7);
 
   HybridSimulator::Parameter param;
   param.prefix = 1;
@@ -103,72 +105,74 @@ R"(2
 
   std::vector<std::complex<Simulator::fp_type>> results(4, 0);
 
-  EXPECT_EQ(HybridSimulator::Run(
-      param, hd, parts, fgates0, fgates1, bitstrings, results), true);
+  std::complex<Simulator::fp_type> zero(0, 0);
+
+  EXPECT_TRUE(HybridSimulator(1).Run(
+      param, hd, parts, fgates0, fgates1, bitstrings, results));
 
   EXPECT_NEAR(std::real(results[0]), -0.16006945, 1e-6);
   EXPECT_NEAR(std::imag(results[0]), -0.04964612, 1e-6);
-  EXPECT_NEAR(std::real(results[1]), -0.03155057, 1e-6);
-  EXPECT_NEAR(std::imag(results[1]), 0.56567556, 1e-6);
-  EXPECT_NEAR(std::real(results[2]), 0.22667059, 1e-6);
-  EXPECT_NEAR(std::imag(results[2]), -0.03155057, 1e-6);
+  EXPECT_NEAR(std::real(results[1]), 0.22667059, 1e-6);
+  EXPECT_NEAR(std::imag(results[1]), -0.03155057, 1e-6);
+  EXPECT_NEAR(std::real(results[2]), -0.03155057, 1e-6);
+  EXPECT_NEAR(std::imag(results[2]), 0.56567556, 1e-6);
   EXPECT_NEAR(std::real(results[3]), 0.28935891, 1e-6);
   EXPECT_NEAR(std::imag(results[3]), 0.71751291, 1e-6);
 
-  std::fill(results.begin(), results.end(), 0);
+  std::fill(results.begin(), results.end(), zero);
   param.num_prefix_gatexs = 0;
   param.num_root_gatexs = 1;
 
-  EXPECT_EQ(HybridSimulator::Run(
-      param, hd, parts, fgates0, fgates1, bitstrings, results), true);
+  EXPECT_TRUE(HybridSimulator(1).Run(
+      param, hd, parts, fgates0, fgates1, bitstrings, results));
 
   EXPECT_NEAR(std::real(results[0]), -0.16006945, 1e-6);
   EXPECT_NEAR(std::imag(results[0]), -0.04964612, 1e-6);
-  EXPECT_NEAR(std::real(results[1]), -0.03155057, 1e-6);
-  EXPECT_NEAR(std::imag(results[1]), 0.56567556, 1e-6);
-  EXPECT_NEAR(std::real(results[2]), 0.22667059, 1e-6);
-  EXPECT_NEAR(std::imag(results[2]), -0.03155057, 1e-6);
+  EXPECT_NEAR(std::real(results[1]), 0.22667059, 1e-6);
+  EXPECT_NEAR(std::imag(results[1]), -0.03155057, 1e-6);
+  EXPECT_NEAR(std::real(results[2]), -0.03155057, 1e-6);
+  EXPECT_NEAR(std::imag(results[2]), 0.56567556, 1e-6);
   EXPECT_NEAR(std::real(results[3]), 0.28935891, 1e-6);
   EXPECT_NEAR(std::imag(results[3]), 0.71751291, 1e-6);
 
-  std::fill(results.begin(), results.end(), 0);
+  std::fill(results.begin(), results.end(), zero);
   param.num_prefix_gatexs = 0;
   param.num_root_gatexs = 2;
 
-  EXPECT_EQ(HybridSimulator::Run(
-      param, hd, parts, fgates0, fgates1, bitstrings, results), true);
+  EXPECT_TRUE(HybridSimulator(1).Run(
+      param, hd, parts, fgates0, fgates1, bitstrings, results));
 
   EXPECT_NEAR(std::real(results[0]), -0.16006945, 1e-6);
   EXPECT_NEAR(std::imag(results[0]), -0.04964612, 1e-6);
-  EXPECT_NEAR(std::real(results[1]), -0.03155057, 1e-6);
-  EXPECT_NEAR(std::imag(results[1]), 0.56567556, 1e-6);
-  EXPECT_NEAR(std::real(results[2]), 0.22667059, 1e-6);
-  EXPECT_NEAR(std::imag(results[2]), -0.03155057, 1e-6);
+  EXPECT_NEAR(std::real(results[1]), 0.22667059, 1e-6);
+  EXPECT_NEAR(std::imag(results[1]), -0.03155057, 1e-6);
+  EXPECT_NEAR(std::real(results[2]), -0.03155057, 1e-6);
+  EXPECT_NEAR(std::imag(results[2]), 0.56567556, 1e-6);
   EXPECT_NEAR(std::real(results[3]), 0.28935891, 1e-6);
   EXPECT_NEAR(std::imag(results[3]), 0.71751291, 1e-6);
 
-  std::fill(results.begin(), results.end(), 0);
+  std::fill(results.begin(), results.end(), zero);
   param.num_prefix_gatexs = 0;
   param.num_root_gatexs = 5;
 
-  EXPECT_EQ(HybridSimulator::Run(
-      param, hd, parts, fgates0, fgates1, bitstrings, results), true);
+  EXPECT_TRUE(HybridSimulator(1).Run(
+      param, hd, parts, fgates0, fgates1, bitstrings, results));
 
   EXPECT_NEAR(std::real(results[0]), -0.16006945, 1e-6);
   EXPECT_NEAR(std::imag(results[0]), -0.04964612, 1e-6);
-  EXPECT_NEAR(std::real(results[1]), -0.03155057, 1e-6);
-  EXPECT_NEAR(std::imag(results[1]), 0.56567556, 1e-6);
-  EXPECT_NEAR(std::real(results[2]), 0.22667059, 1e-6);
-  EXPECT_NEAR(std::imag(results[2]), -0.03155057, 1e-6);
+  EXPECT_NEAR(std::real(results[1]), 0.22667059, 1e-6);
+  EXPECT_NEAR(std::imag(results[1]), -0.03155057, 1e-6);
+  EXPECT_NEAR(std::real(results[2]), -0.03155057, 1e-6);
+  EXPECT_NEAR(std::imag(results[2]), 0.56567556, 1e-6);
   EXPECT_NEAR(std::real(results[3]), 0.28935891, 1e-6);
   EXPECT_NEAR(std::imag(results[3]), 0.71751291, 1e-6);
 
-  std::fill(results.begin(), results.end(), 0);
+  std::fill(results.begin(), results.end(), zero);
   param.num_prefix_gatexs = 0;
   param.num_root_gatexs = 6;
 }
 
-TEST(QSimRunner, Hybrid4) {
+TEST(HybridTest, Hybrid4) {
   constexpr char circuit_string[] =
 R"(4
 0 h 0
@@ -239,18 +243,19 @@ R"(4
   std::stringstream ss(circuit_string);
   Circuit<GateQSim<float>> circuit;
 
-  EXPECT_EQ(CircuitQsimParser<IO>::FromStream(99, provider, ss, circuit), true);
+  EXPECT_TRUE(CircuitQsimParser<IO>::FromStream(99, provider, ss, circuit));
   EXPECT_EQ(circuit.num_qubits, 4);
   EXPECT_EQ(circuit.gates.size(), 63);
 
-  using Simulator = SimulatorAVX<ParallelFor>;
+  using Simulator = Simulator<For>;
   using HybridSimulator = HybridSimulator<IO, GateQSim<float>, BasicGateFuser,
-                                          Simulator, ParallelFor>;
+                                          Simulator, For>;
   using Fuser = HybridSimulator::Fuser;
 
   std::vector<unsigned> parts = {0, 0, 1, 1};
 
-  auto hd = HybridSimulator::SplitLattice(parts, circuit.gates);
+  HybridSimulator::HybridData hd;
+  EXPECT_TRUE(HybridSimulator::SplitLattice(parts, circuit.gates, hd));
 
   EXPECT_EQ(hd.gates0.size(), 34);
   EXPECT_EQ(hd.gates1.size(), 34);
@@ -260,8 +265,11 @@ R"(4
   EXPECT_EQ(hd.num_qubits1, 2);
   EXPECT_EQ(hd.num_gatexs, 5);
 
-  auto fgates0 = Fuser::FuseGates(hd.num_qubits0, hd.gates0, 99);
-  auto fgates1 = Fuser::FuseGates(hd.num_qubits1, hd.gates1, 99);
+  auto fgates0 = Fuser::FuseGates(hd.num_qubits0, hd.gates0);
+  auto fgates1 = Fuser::FuseGates(hd.num_qubits1, hd.gates1);
+
+  EXPECT_EQ(fgates0.size(), 10);
+  EXPECT_EQ(fgates1.size(), 10);
 
   HybridSimulator::Parameter param;
   param.prefix = 1;
@@ -278,8 +286,8 @@ R"(4
 
   std::vector<std::complex<Simulator::fp_type>> results(8, 0);
 
-  EXPECT_EQ(HybridSimulator::Run(
-      param, hd, parts, fgates0, fgates1, bitstrings, results), true);
+  EXPECT_TRUE(HybridSimulator(1).Run(
+      param, hd, parts, fgates0, fgates1, bitstrings, results));
 
   EXPECT_NEAR(std::real(results[0]), -0.02852439, 1e-6);
   EXPECT_NEAR(std::imag(results[0]), -0.05243438, 1e-6);

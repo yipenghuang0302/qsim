@@ -22,35 +22,39 @@
 #include <string>
 
 #include "../lib/circuit_qsim_parser.h"
+#include "../lib/formux.h"
 #include "../lib/fuser_basic.h"
 #include "../lib/gates_qsim.h"
 #include "../lib/io_file.h"
-#include "../lib/parfor.h"
 #include "../lib/run_qsim.h"
 #include "../lib/simmux.h"
 
 struct Options {
   std::string circuit_file;
   unsigned maxtime = std::numeric_limits<unsigned>::max();
+  unsigned seed = 1;
   unsigned num_threads = 1;
   unsigned verbosity = 0;
 };
 
 Options GetOptions(int argc, char* argv[]) {
   constexpr char usage[] = "usage:\n  ./qsim_von_neumann -c circuit -d maxtime "
-                           "-t threads -v verbosity\n";
+                           "-s seed -t threads -v verbosity\n";
 
   Options opt;
 
   int k;
 
-  while ((k = getopt(argc, argv, "c:d:t:v:")) != -1) {
+  while ((k = getopt(argc, argv, "c:d:s:t:v:")) != -1) {
     switch (k) {
       case 'c':
         opt.circuit_file = optarg;
         break;
       case 'd':
         opt.maxtime = std::atoi(optarg);
+        break;
+      case 's':
+        opt.seed = std::atoi(optarg);
         break;
       case 't':
         opt.num_threads = std::atoi(optarg);
@@ -90,7 +94,7 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  using Simulator = qsim::Simulator<ParallelFor>;
+  using Simulator = qsim::Simulator<For>;
   using StateSpace = Simulator::StateSpace;
   using State = StateSpace::State;
 
@@ -104,19 +108,19 @@ int main(int argc, char* argv[]) {
       return p != 0 ? p * std::log(p) : 0;
     };
 
-    auto size = state_space.Size(state);
-    double entropy = -ParallelFor::RunReduce(opt.num_threads, size, f, Op(),
-                                             state_space, state);
+    double entropy = -For(opt.num_threads).RunReduce(state_space.Size(), f,
+                                                     Op(), state_space, state);
     IO::messagef("entropy=%g\n", entropy);
   };
 
-  using Runner = QSimRunner<IO, BasicGateFuser<GateQSim<float>>, Simulator>;
+  using Runner = QSimRunner<IO, BasicGateFuser<IO, GateQSim<float>>, Simulator>;
 
   Runner::Parameter param;
+  param.seed = opt.seed;
   param.num_threads = opt.num_threads;
   param.verbosity = opt.verbosity;
 
-  Runner::Run(param, opt.maxtime, circuit, measure);
+  Runner::Run(param, circuit, measure);
 
   return 0;
 }

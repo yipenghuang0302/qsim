@@ -23,23 +23,25 @@
 
 #include "../lib/bitstring.h"
 #include "../lib/circuit_qsim_parser.h"
+#include "../lib/formux.h"
 #include "../lib/fuser_basic.h"
 #include "../lib/gates_qsim.h"
 #include "../lib/io_file.h"
-#include "../lib/parfor.h"
 #include "../lib/run_qsim.h"
 #include "../lib/simmux.h"
 #include "../lib/util.h"
 
 constexpr char usage[] = "usage:\n  ./qsim_amplitudes -c circuit_file "
                          "-d times_to_save_results -i input_files "
-                         "-o output_files -t num_threads -v verbosity\n";
+                         "-o output_files -s seed -t num_threads "
+                         "-v verbosity\n";
 
 struct Options {
   std::string circuit_file;
   std::vector<unsigned> times = {std::numeric_limits<unsigned>::max()};
   std::vector<std::string> input_files;
   std::vector<std::string> output_files;
+  unsigned seed = 1;
   unsigned num_threads = 1;
   unsigned verbosity = 0;
 };
@@ -53,7 +55,7 @@ Options GetOptions(int argc, char* argv[]) {
     return std::atoi(word.c_str());
   };
 
-  while ((k = getopt(argc, argv, "c:d:i:o:t:v:")) != -1) {
+  while ((k = getopt(argc, argv, "c:d:i:s:o:t:v:")) != -1) {
     switch (k) {
       case 'c':
         opt.circuit_file = optarg;
@@ -66,6 +68,9 @@ Options GetOptions(int argc, char* argv[]) {
         break;
       case 'o':
         qsim::SplitString(optarg, ',', opt.output_files);
+        break;
+      case 's':
+        opt.seed = std::atoi(optarg);
         break;
       case 't':
         opt.num_threads = std::atoi(optarg);
@@ -153,7 +158,7 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  using Simulator = qsim::Simulator<ParallelFor>;
+  using Simulator = qsim::Simulator<For>;
   using StateSpace = Simulator::StateSpace;
   using State = StateSpace::State;
 
@@ -167,9 +172,10 @@ int main(int argc, char* argv[]) {
     }
   };
 
-  using Runner = QSimRunner<IO, BasicGateFuser<GateQSim<float>>, Simulator>;
+  using Runner = QSimRunner<IO, BasicGateFuser<IO, GateQSim<float>>, Simulator>;
 
   Runner::Parameter param;
+  param.seed = opt.seed;
   param.num_threads = opt.num_threads;
   param.verbosity = opt.verbosity;
   Runner::Run(param, opt.times, circuit, measure);

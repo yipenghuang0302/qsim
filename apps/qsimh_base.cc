@@ -23,10 +23,10 @@
 
 #include "../lib/bitstring.h"
 #include "../lib/circuit_qsim_parser.h"
+#include "../lib/formux.h"
 #include "../lib/fuser_basic.h"
 #include "../lib/gates_qsim.h"
 #include "../lib/io_file.h"
-#include "../lib/parfor.h"
 #include "../lib/run_qsimh.h"
 #include "../lib/simmux.h"
 #include "../lib/util.h"
@@ -151,9 +151,9 @@ int main(int argc, char* argv[]) {
     bitstrings.push_back(i);
   }
 
-  using Simulator = qsim::Simulator<ParallelFor>;
+  using Simulator = qsim::Simulator<For>;
   using HybridSimulator = HybridSimulator<IO, GateQSim<float>, BasicGateFuser,
-                                          Simulator, ParallelFor>;
+                                          Simulator, For>;
   using Runner = QSimHRunner<IO, HybridSimulator>;
 
   Runner::Parameter param;
@@ -165,10 +165,7 @@ int main(int argc, char* argv[]) {
 
   std::vector<std::complex<Simulator::fp_type>> results(num_bitstrings, 0);
 
-  bool rc = Runner::Run(
-      param, opt.maxtime, parts, circuit.gates, bitstrings, results);
-
-  if (rc) {
+  if (Runner::Run(param, circuit, parts, bitstrings, results)) {
     static constexpr char const* bits[8] = {
       "000", "001", "010", "011", "100", "101", "110", "111",
     };
@@ -178,7 +175,7 @@ int main(int argc, char* argv[]) {
     for (std::size_t i = 0; i < num_bitstrings; ++i) {
       const auto& a = results[i];
       qsim::IO::messagef("%s:%16.8g%16.8g%16.8g\n", bits[i] + s,
-                        std::real(a), std::imag(a), std::norm(a));
+                         std::real(a), std::imag(a), std::norm(a));
     }
   }
 

@@ -18,23 +18,36 @@
 #include <omp.h>
 
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 namespace qsim {
 
 template <uint64_t MIN_SIZE>
 struct ParallelForT {
+  explicit ParallelForT(unsigned num_threads) : num_threads(num_threads) {}
+
+  // GetIndex0 and GetIndex1 are useful when we need to know how work was
+  // divided between threads, for instance, for reusing partial sums obtained
+  // by RunReduceP.
+  uint64_t GetIndex0(uint64_t size, unsigned thread_id) const {
+    return size >= MIN_SIZE ? size * thread_id / num_threads : 0;
+  }
+
+  uint64_t GetIndex1(uint64_t size, unsigned thread_id) const {
+    return size >= MIN_SIZE ? size * (thread_id + 1) / num_threads : size;
+  }
+
   template <typename Function, typename... Args>
-  static void Run(
-      unsigned num_threads, uint64_t size, Function&& func, Args&&... args) {
+  void Run(uint64_t size, Function&& func, Args&&... args) const {
     if (num_threads > 1 && size >= MIN_SIZE) {
       #pragma omp parallel num_threads(num_threads)
       {
         unsigned n = omp_get_num_threads();
         unsigned m = omp_get_thread_num();
 
-        uint64_t i0 = size * m / n;
-        uint64_t i1 = size * (m + 1) / n;
+        uint64_t i0 = GetIndex0(size, m);
+        uint64_t i1 = GetIndex1(size, m);
 
         for (uint64_t i = i0; i < i1; ++i) {
           func(n, m, i, args...);
@@ -48,21 +61,20 @@ struct ParallelForT {
   }
 
   template <typename Function, typename Op, typename... Args>
-  static typename Op::result_type RunReduce(unsigned num_threads,
-                                            uint64_t size, Function&& func,
-                                            Op&& op, Args&&... args) {
-    typename Op::result_type result = 0;
+  std::vector<typename Op::result_type> RunReduceP(
+      uint64_t size, Function&& func, Op&& op, Args&&... args) const {
+    std::vector<typename Op::result_type> partial_results;
 
     if (num_threads > 1 && size >= MIN_SIZE) {
-      std::vector<typename Op::result_type> partial_results(num_threads, 0);
+      partial_results.resize(num_threads, 0);
 
       #pragma omp parallel num_threads(num_threads)
       {
         unsigned n = omp_get_num_threads();
         unsigned m = omp_get_thread_num();
 
-        uint64_t i0 = size * m / n;
-        uint64_t i1 = size * (m + 1) / n;
+        uint64_t i0 = GetIndex0(size, m);
+        uint64_t i1 = GetIndex1(size, m);
 
         typename Op::result_type partial_result = 0;
 
@@ -72,18 +84,33 @@ struct ParallelForT {
 
         partial_results[m] = partial_result;
       }
-
-      for (unsigned i = 0; i < num_threads; ++i) {
-        result = op(result, partial_results[i]);
-      }
     } else if (num_threads > 0) {
+      typename Op::result_type result = 0;
       for (uint64_t i = 0; i < size; ++i) {
         result = op(result, func(1, 0, i, args...));
       }
+
+      partial_results.resize(1, result);
+    }
+
+    return partial_results;
+  }
+
+  template <typename Function, typename Op, typename... Args>
+  typename Op::result_type RunReduce(uint64_t size, Function&& func,
+                                     Op&& op, Args&&... args) const {
+    auto partial_results = RunReduceP(size, func, std::move(op), args...);
+
+    typename Op::result_type result = 0;
+
+    for (auto partial_result : partial_results) {
+      result = op(result, partial_result);
     }
 
     return result;
   }
+
+  unsigned num_threads;
 };
 
 using ParallelFor = ParallelForT<1024>;

@@ -9,10 +9,12 @@ cc_library(
         "bitstring.h",
         "circuit_qsim_parser.h",
         "circuit.h",
+        "formux.h",
         "fuser_basic.h",
         "fuser.h",
         "gate.h",
-        "gates_appl.h",
+        "gate_appl.h",
+        "gates_cirq.h",
         "gates_qsim.h",
         "hybrid.h",
         "io_file.h",
@@ -30,6 +32,10 @@ cc_library(
         "statespace_basic.h",
         "statespace_sse.h",
         "statespace.h",
+        "umux.h",
+        "unitaryspace.h",
+        "unitaryspace_basic.h",
+        "unitary_calculator_basic.h",
         "util.h",
     ],
 )
@@ -37,28 +43,65 @@ cc_library(
 # Library to run qsim with qsim circuit parser and parallel `for`
 cc_library(
     name = "run_qsim_lib",
-    deps = [
-        ":circuit_qsim_parser",
-        ":fuser_basic",
-        ":gates_qsim",
-        ":io_file",
-        ":parfor",
-        ":run_qsim",
-        ":simulator",
+    hdrs = [
+        "circuit.h",
+        "circuit_qsim_parser.h",
+        "formux.h",
+        "fuser.h",
+        "fuser_basic.h",
+        "gate.h",
+        "gate_appl.h",
+        "gates_qsim.h",
+        "io.h",
+        "io_file.h",
+        "matrix.h",
+        "parfor.h",
+        "run_qsim.h",
+        "seqfor.h",
+        "simmux.h",
+        "simulator_avx.h",
+        "simulator_basic.h",
+        "simulator_sse.h",
+        "statespace.h",
+        "statespace_avx.h",
+        "statespace_basic.h",
+        "statespace_sse.h",
+        "umux.h",
+        "unitaryspace.h",
+        "unitaryspace_basic.h",
+        "unitary_calculator_basic.h",
+        "util.h",
     ],
 )
 
 # Library to run qsimh with qsim circuit parser and parallel `for`
 cc_library(
     name = "run_qsimh_lib",
-    deps = [
-        ":circuit_qsim_parser",
-        ":fuser_basic",
-        ":gates_qsim",
-        ":io_file",
-        ":parfor",
-        ":run_qsimh",
-        ":simulator",
+    hdrs = [
+        "circuit.h",
+        "circuit_qsim_parser.h",
+        "formux.h",
+        "fuser.h",
+        "fuser_basic.h",
+        "gate.h",
+        "gate_appl.h",
+        "gates_qsim.h",
+        "hybrid.h",
+        "io.h",
+        "io_file.h",
+        "matrix.h",
+        "parfor.h",
+        "run_qsimh.h",
+        "seqfor.h",
+        "simmux.h",
+        "simulator_avx.h",
+        "simulator_basic.h",
+        "simulator_sse.h",
+        "statespace.h",
+        "statespace_avx.h",
+        "statespace_basic.h",
+        "statespace_sse.h",
+        "util.h",
     ],
 )
 
@@ -109,6 +152,16 @@ cc_library(
     hdrs = ["seqfor.h"],
 )
 
+# Both parallelism control paths with multiplexer
+cc_library(
+    name = "formux",
+    hdrs = ["formux.h"],
+    deps = [
+        ":parfor",
+        ":seqfor",
+    ],
+)
+
 ### Gate libraries ###
 
 cc_library(
@@ -118,9 +171,15 @@ cc_library(
 )
 
 cc_library(
-    name = "gates_appl",
-    hdrs = ["gates_appl.h"],
+    name = "gate_appl",
+    hdrs = ["gate_appl.h"],
     deps = [":matrix"],
+)
+
+cc_library(
+    name = "gates_cirq",
+    hdrs = ["gates_cirq.h"],
+    deps = [":gate"],
 )
 
 cc_library(
@@ -156,7 +215,10 @@ cc_library(
 cc_library(
     name = "fuser_basic",
     hdrs = ["fuser_basic.h"],
-    deps = [":fuser"],
+    deps = [
+        ":fuser",
+        ":gate",
+    ],
 )
 
 ### Helper libraries to run qsim and qsimh ###
@@ -165,7 +227,8 @@ cc_library(
     name = "run_qsim",
     hdrs = ["run_qsim.h"],
     deps = [
-        ":gates_appl",
+        ":gate",
+        ":gate_appl",
         ":util",
     ],
 )
@@ -184,6 +247,7 @@ cc_library(
 cc_library(
     name = "statespace",
     hdrs = ["statespace.h"],
+    deps = [":util"],
 )
 
 cc_library(
@@ -250,6 +314,36 @@ cc_library(
     hdrs = ["hybrid.h"],
     deps = [
         ":gate",
-        ":gates_appl",
+        ":gate_appl",
     ],
+)
+
+### UnitarySpace libraries ###
+
+cc_library(
+    name = "unitaryspace",
+    hdrs = ["unitaryspace.h"],
+    deps = [":util"],
+)
+
+cc_library(
+    name = "unitaryspace_basic",
+    hdrs = ["unitaryspace_basic.h"],
+    deps = [":unitaryspace"],
+)
+
+### Unitary calculator libraries ###
+
+cc_library(
+    name = "unitary_calculator_basic",
+    hdrs = ["unitary_calculator_basic.h"],
+    deps = [":unitaryspace_basic"],
+)
+
+### Unitary mux header ###
+
+cc_library(
+    name = "umux",
+    hdrs = ["umux.h"],
+    deps = [":unitary_calculator_basic"]
 )

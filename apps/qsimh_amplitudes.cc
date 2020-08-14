@@ -23,10 +23,10 @@
 
 #include "../lib/bitstring.h"
 #include "../lib/circuit_qsim_parser.h"
+#include "../lib/formux.h"
 #include "../lib/fuser_basic.h"
 #include "../lib/gates_qsim.h"
 #include "../lib/io_file.h"
-#include "../lib/parfor.h"
 #include "../lib/run_qsimh.h"
 #include "../lib/simmux.h"
 #include "../lib/util.h"
@@ -186,9 +186,9 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  using Simulator = qsim::Simulator<ParallelFor>;
+  using Simulator = qsim::Simulator<For>;
   using HybridSimulator = HybridSimulator<IO, GateQSim<float>, BasicGateFuser,
-                                          Simulator, ParallelFor>;
+                                          Simulator, For>;
   using Runner = QSimHRunner<IO, HybridSimulator>;
 
   Runner::Parameter param;
@@ -200,10 +200,7 @@ int main(int argc, char* argv[]) {
 
   std::vector<std::complex<Simulator::fp_type>> results(bitstrings.size(), 0);
 
-  bool rc = Runner::Run(
-      param, opt.maxtime, parts, circuit.gates, bitstrings, results);
-
-  if (rc) {
+  if (Runner::Run(param, circuit, parts, bitstrings, results)) {
     WriteAmplitudes(opt.output_file, bitstrings, results);
     IO::messagef("all done.\n");
   }

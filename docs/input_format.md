@@ -1,5 +1,10 @@
 #  Input circuit file format
 
+**WARNING:** This format only supports the `gates_qsim` gate set, and is no
+longer actively maintained. For other gates, circuits must be defined in code
+or through the qsimcirq interface using 
+[Cirq](https://github.com/quantumlib/cirq).
+
 The first line contains the number of qubits. The rest of the lines specify
 gates with one gate per line. The format for a gate is
 
@@ -36,3 +41,7 @@ fSim(&theta;, &phi;)                                              | time fs qubi
 CPhase(&phi;)                                                     | time cp qubit1 qubit2 phi       | 6 cp 0 1 0.78
 Identity (1-qubit)                                                | time id1 qubit                  | 7 id1 0
 Identity (2-qubit)                                                | time id2 qubit                  | 8 id2 0 1
+Measurement (n-qubit)                                             | time m qubit1 qubit2 ...        | 9 m 0 1 2 3
+
+Gate times should be ordered. Measurement gates with equal times get fused
+together.

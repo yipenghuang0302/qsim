@@ -28,14 +28,19 @@ namespace qsim {
 // Routines for state-vector manipulations.
 // State is a non-vectorized sequence of one real amplitude followed by
 // one imaginary amplitude.
-template <typename ParallelFor, typename FP>
-struct StateSpaceBasic : public StateSpace<ParallelFor, FP> {
-  using Base = StateSpace<ParallelFor, FP>;
+template <typename For, typename FP>
+struct StateSpaceBasic : public StateSpace<StateSpaceBasic<For, FP>, For, FP> {
+  using Base = StateSpace<StateSpaceBasic<For, FP>, For, FP>;
   using State = typename Base::State;
   using fp_type = typename Base::fp_type;
 
-  StateSpaceBasic(unsigned num_qubits, unsigned num_threads)
-      : Base(num_qubits, num_threads, 2 * (uint64_t{1} << num_qubits)) {}
+  template <typename... ForArgs>
+  explicit StateSpaceBasic(unsigned num_qubits, ForArgs&&... args)
+      : Base(2 * (uint64_t{1} << num_qubits), num_qubits, args...) {}
+
+  void InternalToNormalOrder(State& state) const {}
+
+  void NormalToInternalOrder(State& state) const {}
 
   void SetAllZeros(State& state) const {
     auto f = [](unsigned n, unsigned m, uint64_t i, State& state) {
@@ -43,12 +48,12 @@ struct StateSpaceBasic : public StateSpace<ParallelFor, FP> {
       state.get()[2 * i + 1] = 0;
     };
 
-    ParallelFor::Run(Base::num_threads_, Base::size_, f, state);
+    Base::for_.Run(Base::raw_size_ / 2, f, state);
   }
 
   // Uniform superposition.
   void SetStateUniform(State& state) const {
-    fp_type val = fp_type{1} / std::sqrt(Base::size_);
+    fp_type val = fp_type{1} / std::sqrt(Base::Size());
 
     auto f = [](unsigned n, unsigned m, uint64_t i,
                 fp_type val, State& state) {
@@ -56,8 +61,7 @@ struct StateSpaceBasic : public StateSpace<ParallelFor, FP> {
       state.get()[2 * i + 1] = 0;
     };
 
-    ParallelFor::Run(
-        Base::num_threads_, Base::size_, f, state, val, state);
+    Base::for_.Run(Base::raw_size_ / 2, f, val, state);
   }
 
   // |0> state.
@@ -84,19 +88,6 @@ struct StateSpaceBasic : public StateSpace<ParallelFor, FP> {
     state.get()[p + 1] = im;
   }
 
-  double Norm(const State& state) const {
-    using Op = std::plus<double>;
-
-    auto f = [](unsigned n, unsigned m, uint64_t i,
-                const State& state) -> double {
-      auto s = state.get() + 2 * i;
-      return s[0] * s[0] + s[1] * s[1];
-    };
-
-    return ParallelFor::RunReduce(
-        Base::num_threads_, Base::size_, f, Op(), state);
-  }
-
   std::complex<double> InnerProduct(
       const State& state1, const State& state2) const {
     using Op = std::plus<std::complex<double>>;
@@ -112,8 +103,7 @@ struct StateSpaceBasic : public StateSpace<ParallelFor, FP> {
       return std::complex<double>{re, im};
     };
 
-    return ParallelFor::RunReduce(
-        Base::num_threads_, Base::size_, f, Op(), state1, state2);
+    return Base::for_.RunReduce(Base::raw_size_ / 2, f, Op(), state1, state2);
   }
 
   double RealInnerProduct(const State& state1, const State& state2) const {
@@ -127,8 +117,7 @@ struct StateSpaceBasic : public StateSpace<ParallelFor, FP> {
       return s1[0] * s2[0] + s1[1] * s2[1];
     };
 
-    return ParallelFor::RunReduce(
-        Base::num_threads_, Base::size_, f, Op(), state1, state2);
+    return Base::for_.RunReduce(Base::raw_size_ / 2, f, Op(), state1, state2);
   }
 
   template <typename DistrRealType = double>
@@ -138,11 +127,12 @@ struct StateSpaceBasic : public StateSpace<ParallelFor, FP> {
 
     if (num_samples > 0) {
       double norm = 0;
-      uint64_t size = 2 * Base::size_;
-      const fp_type* v = state.get();
+      uint64_t size = Base::raw_size_ / 2;
 
-      for (uint64_t k = 0; k < size; k += 2) {
-        norm += v[k] * v[k] + v[k + 1] * v[k + 1];
+      for (uint64_t k = 0; k < size; ++k) {
+        auto re = state.get()[2 * k];
+        auto im = state.get()[2 * k + 1];
+        norm += re * re + im * im;
       }
 
       auto rs = GenerateRandomValues<DistrRealType>(num_samples, seed, norm);
@@ -151,16 +141,75 @@ struct StateSpaceBasic : public StateSpace<ParallelFor, FP> {
       double csum = 0;
       bitstrings.reserve(num_samples);
 
-      for (uint64_t k = 0; k < size; k += 2) {
-        csum += v[k] * v[k] + v[k + 1] * v[k + 1];
+      for (uint64_t k = 0; k < size; ++k) {
+        auto re = state.get()[2 * k];
+        auto im = state.get()[2 * k + 1];
+        csum += re * re + im * im;
         while (rs[m] < csum && m < num_samples) {
-          bitstrings.emplace_back(k / 2);
+          bitstrings.emplace_back(k);
           ++m;
         }
       }
     }
 
     return bitstrings;
+  }
+
+  using MeasurementResult = typename Base::MeasurementResult;
+
+  void CollapseState(const MeasurementResult& mr, State& state) const {
+    auto f1 = [](unsigned n, unsigned m, uint64_t i, const State& state,
+                 uint64_t mask, uint64_t bits) -> double {
+      auto s = state.get() + 2 * i;
+      return (i & mask) == bits ? s[0] * s[0] + s[1] * s[1] : 0;
+    };
+
+    using Op = std::plus<double>;
+    double norm = Base::for_.RunReduce(Base::raw_size_ / 2, f1,
+                                       Op(), state, mr.mask, mr.bits);
+
+    double renorm = 1.0 / std::sqrt(norm);
+
+    auto f2 = [](unsigned n, unsigned m, uint64_t i,  State& state,
+                 uint64_t mask, uint64_t bits, fp_type renorm) {
+      auto s = state.get() + 2 * i;
+      bool not_zero = (i & mask) == bits;
+
+      s[0] = not_zero ? s[0] * renorm : 0;
+      s[1] = not_zero ? s[1] * renorm : 0;
+    };
+
+    Base::for_.Run(Base::raw_size_ / 2, f2, state, mr.mask, mr.bits, renorm);
+  }
+
+  std::vector<double> PartialNorms(const State& state) const {
+    auto f = [](unsigned n, unsigned m, uint64_t i,
+                const State& state) -> double {
+      auto s = state.get() + 2 * i;
+      return s[0] * s[0] + s[1] * s[1];
+    };
+
+    using Op = std::plus<double>;
+    return Base::for_.RunReduceP(Base::raw_size_ / 2, f, Op(), state);
+  }
+
+  uint64_t FindMeasuredBits(
+      unsigned m, double r, uint64_t mask, const State& state) const {
+    double csum = 0;
+
+    uint64_t k0 = Base::for_.GetIndex0(Base::raw_size_ / 2, m);
+    uint64_t k1 = Base::for_.GetIndex1(Base::raw_size_ / 2, m);
+
+    for (uint64_t k = k0; k < k1; ++k) {
+      auto re = state.get()[2 * k];
+      auto im = state.get()[2 * k + 1];
+      csum += re * re + im * im;
+      if (r < csum) {
+        return k & mask;
+      }
+    }
+
+    return 0;
   }
 };
 

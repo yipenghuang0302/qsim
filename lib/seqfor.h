@@ -16,29 +16,47 @@
 #define SEQFOR_H_
 
 #include <cstdint>
+#include <utility>
+#include <vector>
 
 namespace qsim {
 
 struct SequentialFor {
+  explicit SequentialFor(unsigned num_threads) {}
+
+  // SequentialFor does not have any state. So all its methods can be static.
+
+  static uint64_t GetIndex0(uint64_t size, unsigned thread_id) {
+    return 0;
+  }
+
+  static uint64_t GetIndex1(uint64_t size, unsigned thread_id) {
+    return size;
+  }
+
   template <typename Function, typename... Args>
-  static void Run(
-    unsigned num_threads, uint64_t size, Function&& func, Args&&... args) {
+  static void Run(uint64_t size, Function&& func, Args&&... args) {
     for (uint64_t i = 0; i < size; ++i) {
       func(1, 0, i, args...);
     }
   }
 
   template <typename Function, typename Op, typename... Args>
-  static typename Op::result_type RunReduce(unsigned num_threads,
-                                            uint64_t size, Function&& func,
-                                            Op&& op, Args&&... args) {
+  static std::vector<typename Op::result_type> RunReduceP(
+      uint64_t size, Function&& func, Op&& op, Args&&... args) {
     typename Op::result_type result = 0;
 
     for (uint64_t i = 0; i < size; ++i) {
       result = op(result, func(1, 0, i, args...));
     }
 
-    return result;
+    return std::vector<typename Op::result_type>(1, result);
+  }
+
+  template <typename Function, typename Op, typename... Args>
+  static typename Op::result_type RunReduce(uint64_t size, Function&& func,
+                                            Op&& op, Args&&... args) {
+    return RunReduceP(size, func, std::move(op), args...)[0];
   }
 };
 

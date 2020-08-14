@@ -21,13 +21,14 @@
 #include <vector>
 
 #include "gate.h"
-#include "gates_appl.h"
+#include "gate_appl.h"
 
 namespace qsim {
 
 // Hybrid Feynmann-Schrodiner simulator.
-template <typename IO, typename GateT, template <typename> class FuserT,
-          typename Simulator, typename ParallelFor>
+template <typename IO, typename GateT,
+          template <typename, typename> class FuserT,
+          typename Simulator, typename For>
 struct HybridSimulator final {
  public:
   using Gate = GateT;
@@ -45,11 +46,12 @@ struct HybridSimulator final {
     GateKind kind;
     unsigned time;
     unsigned num_qubits;
-    unsigned qubits[3];
+    std::vector<unsigned> qubits;
+    std::vector<fp_type> params;
+    std::vector<fp_type> matrix;
     bool unfusible;
     bool inverse;
-    std::vector<fp_type> params;
-    std::array<fp_type, 32> matrix;
+
     const Gate* parent;
     unsigned id;
   };
@@ -63,7 +65,7 @@ struct HybridSimulator final {
   };
 
  public:
-  using Fuser = FuserT<GateHybrid>;
+  using Fuser = FuserT<IO, GateHybrid>;
   using GateFused = typename Fuser::GateFused;
 
   struct HybridData {
@@ -84,16 +86,19 @@ struct HybridSimulator final {
     unsigned verbosity = 0;
   };
 
+  template <typename... Args>
+  explicit HybridSimulator(Args&&... args) : for_(args...) {}
+
   /**
    * Splits the lattice into two parts, using Schmidt decomposition for gates
    * on the cut.
    * @param parts Lattice sections to be simulated.
    * @param gates List of all gates in the circuit.
+   * @param hd Output data with splitted parts.
+   * @return True if the splitting done successfully; false otherwise.
    */
-  static HybridData SplitLattice(const std::vector<unsigned>& parts,
-                                 const std::vector<Gate>& gates) {
-    HybridData hd;
-
+  static bool SplitLattice(const std::vector<unsigned>& parts,
+                           const std::vector<Gate>& gates, HybridData& hd) {
     hd.num_gatexs = 0;
     hd.num_qubits0 = 0;
     hd.num_qubits1 = 0;
@@ -113,18 +118,23 @@ struct HybridSimulator final {
 
     // Split the lattice.
     for (const auto& gate : gates) {
+      if (gate.kind == gate::kMeasurement) {
+        IO::errorf("measurement gates are not suported by qsimh.\n");
+        return false;
+      }
+
       switch (gate.num_qubits) {
       case 1:  // Single qubit gates.
         switch (parts[gate.qubits[0]]) {
         case 0:
-          hd.gates0.push_back({gate.kind, gate.time, 1,
-            {hd.qubit_map[gate.qubits[0]]}, false, false, gate.params,
-             gate.matrix, nullptr, 0});
+          hd.gates0.emplace_back(GateHybrid{gate.kind, gate.time,
+            1, {hd.qubit_map[gate.qubits[0]]}, gate.params, gate.matrix,
+             false, false, nullptr, 0});
           break;
         case 1:
-          hd.gates1.push_back(GateHybrid{gate.kind, gate.time, 1,
-            {hd.qubit_map[gate.qubits[0]]}, false, false, gate.params,
-             gate.matrix, nullptr, 0});
+          hd.gates1.emplace_back(GateHybrid{gate.kind, gate.time,
+            1, {hd.qubit_map[gate.qubits[0]]}, gate.params, gate.matrix,
+             false, false, nullptr, 0});
           break;
         }
         break;
@@ -132,34 +142,34 @@ struct HybridSimulator final {
         {
           switch ((parts[gate.qubits[1]] << 1) | parts[gate.qubits[0]]) {
           case 0:  // Both qubits in part 0.
-            hd.gates0.push_back(GateHybrid{gate.kind, gate.time, 2,
-              {hd.qubit_map[gate.qubits[0]], hd.qubit_map[gate.qubits[1]]},
-              false, gate.inverse, gate.params, gate.matrix, nullptr, 0});
+            hd.gates0.emplace_back(GateHybrid{gate.kind, gate.time,
+              2, {hd.qubit_map[gate.qubits[0]], hd.qubit_map[gate.qubits[1]]},
+              gate.params, gate.matrix, false, gate.inverse, nullptr, 0});
             break;
           case 1:  // Gate on the cut, qubit 0 in part 1, qubit 1 in part 0.
-            hd.gates0.push_back(GateHybrid{GateKind::kGateDecomp, gate.time, 1,
-              {hd.qubit_map[gate.qubits[1]]}, true, gate.inverse, gate.params,
-              {}, &gate, hd.num_gatexs});
-            hd.gates1.push_back(GateHybrid{GateKind::kGateDecomp, gate.time, 1,
-              {hd.qubit_map[gate.qubits[0]]}, true, gate.inverse, gate.params,
-              {}, &gate, hd.num_gatexs});
+            hd.gates0.emplace_back(GateHybrid{GateKind::kDecomp, gate.time,
+              1, {hd.qubit_map[gate.qubits[1]]}, gate.params, {},
+              true, gate.inverse, &gate, hd.num_gatexs});
+            hd.gates1.emplace_back(GateHybrid{GateKind::kDecomp, gate.time,
+              1, {hd.qubit_map[gate.qubits[0]]}, gate.params, {},
+              true, gate.inverse, &gate, hd.num_gatexs});
 
             ++hd.num_gatexs;
             break;
           case 2:  // Gate on the cut, qubit 0 in part 0, qubit 1 in part 1.
-            hd.gates0.push_back(GateHybrid{GateKind::kGateDecomp, gate.time, 1,
-              {hd.qubit_map[gate.qubits[0]]}, true, gate.inverse, gate.params,
-              {}, &gate, hd.num_gatexs});
-            hd.gates1.push_back(GateHybrid{GateKind::kGateDecomp, gate.time, 1,
-              {hd.qubit_map[gate.qubits[1]]}, true, gate.inverse, gate.params,
-              {}, &gate, hd.num_gatexs});
+            hd.gates0.emplace_back(GateHybrid{GateKind::kDecomp, gate.time,
+              1, {hd.qubit_map[gate.qubits[0]]}, gate.params, {},
+              true, gate.inverse, &gate, hd.num_gatexs});
+            hd.gates1.emplace_back(GateHybrid{GateKind::kDecomp, gate.time,
+              1, {hd.qubit_map[gate.qubits[1]]}, gate.params, {},
+              true, gate.inverse, &gate, hd.num_gatexs});
 
             ++hd.num_gatexs;
             break;
           case 3:  // Both qubits in part 1.
-            hd.gates1.push_back(GateHybrid{gate.kind, gate.time, 2,
-              {hd.qubit_map[gate.qubits[0]], hd.qubit_map[gate.qubits[1]]},
-              false, gate.inverse, gate.params, gate.matrix, nullptr, 0});
+            hd.gates1.emplace_back(GateHybrid{gate.kind, gate.time,
+              2, {hd.qubit_map[gate.qubits[0]], hd.qubit_map[gate.qubits[1]]},
+              gate.params, gate.matrix, false, gate.inverse, nullptr, 0});
             break;
           }
         }
@@ -185,11 +195,23 @@ struct HybridSimulator final {
     for (auto& gate0 : hd.gates0) {
       if (gate0.parent != nullptr) {
         auto d = GetSchmidtDecomp(gate0.parent->kind, gate0.parent->params);
+        if (d.size() == 0) {
+          IO::errorf("no Schmidt decomposition for gate kind %u.\n",
+                     gate0.parent->kind);
+          return false;
+        }
+
         unsigned schmidt_bits = SchmidtBits(d.size());
+        if (schmidt_bits > 2) {
+          IO::errorf("Schmidt rank is too large for gate kind %u.\n",
+                     gate0.parent->kind);
+          return false;
+        }
+
         unsigned inverse = parts[gate0.parent->qubits[0]];
         if (gate0.parent->inverse) inverse = 1 - inverse;
-        hd.gatexs.push_back(GateX{&gate0, nullptr, std::move(d), schmidt_bits,
-                                  inverse});
+        hd.gatexs.emplace_back(GateX{&gate0, nullptr, std::move(d),
+                                     schmidt_bits, inverse});
       }
     }
 
@@ -200,7 +222,13 @@ struct HybridSimulator final {
       }
     }
 
-    return hd;
+    for (auto& gatex : hd.gatexs) {
+      if (gatex.schmidt_decomp.size() == 1) {
+        FillSchmidtMatrices(0, gatex);
+      }
+    }
+
+    return true;
   }
 
   /**
@@ -217,12 +245,12 @@ struct HybridSimulator final {
    *   will be populated with amplitudes for each state in 'bitstrings'.
    * @return True if the simulation completed successfully; false otherwise.
    */
-  static bool Run(const Parameter& param, HybridData& hd,
-                  const std::vector<unsigned>& parts,
-                  const std::vector<GateFused>& fgates0,
-                  const std::vector<GateFused>& fgates1,
-                  const std::vector<uint64_t>& bitstrings,
-                  std::vector<std::complex<fp_type>>& results) {
+  bool Run(const Parameter& param, HybridData& hd,
+           const std::vector<unsigned>& parts,
+           const std::vector<GateFused>& fgates0,
+           const std::vector<GateFused>& fgates1,
+           const std::vector<uint64_t>& bitstrings,
+           std::vector<std::complex<fp_type>>& results) const {
     unsigned num_p_gates = param.num_prefix_gatexs;
     unsigned num_pr_gates = num_p_gates + param.num_root_gatexs;
 
@@ -292,37 +320,51 @@ struct HybridSimulator final {
 
     std::vector<unsigned> prev(hd.num_gatexs, -1);
 
-    SetSchmidtMatrices(0, num_p_gates, param.prefix, prev, hd.gatexs);
+    // param.prefix encodes the prefix path.
+    unsigned gatex_index = SetSchmidtMatrices(
+        0, num_p_gates, param.prefix, prev, hd.gatexs);
 
-    // Apply gates before the first checkpoint.
-    ApplyGates(fgates0, 0, loc0[0], sim0, state0p);
-    ApplyGates(fgates1, 0, loc1[0], sim1, state1p);
+    if (gatex_index == 0) {
+      // Apply gates before the first checkpoint.
+      ApplyGates(fgates0, 0, loc0[0], sim0, state0p);
+      ApplyGates(fgates1, 0, loc1[0], sim1, state1p);
+    } else {
+      IO::errorf("invalid prefix %lu for prefix gate index %u.\n",
+                 param.prefix, gatex_index - 1);
+      return false;
+    }
 
-    // Branch over root gates on the cut.
+    // Branch over root gates on the cut. r encodes the root path.
     for (uint64_t r = 0; r < rmax; ++r) {
       if (rmax > 1) {
         sspace0.CopyState(state0p, state0r);
         sspace1.CopyState(state1p, state1r);
       }
 
-      SetSchmidtMatrices(num_p_gates, num_pr_gates, r, prev, hd.gatexs);
+      if (SetSchmidtMatrices(num_p_gates, num_pr_gates,
+                             r, prev, hd.gatexs) == 0) {
+        // Apply gates before the second checkpoint.
+        ApplyGates(fgates0, loc0[0], loc0[1], sim0, state0r);
+        ApplyGates(fgates1, loc1[0], loc1[1], sim1, state1r);
+      } else {
+        continue;
+      }
 
-      // Apply gates before the second checkpoint.
-      ApplyGates(fgates0, loc0[0], loc0[1], sim0, state0r);
-      ApplyGates(fgates1, loc1[0], loc1[1], sim1, state1r);
-
-      // Branch over suffix gates on the cut.
+      // Branch over suffix gates on the cut. s encodes the suffix path.
       for (uint64_t s = 0; s < smax; ++s) {
         if (smax > 1) {
           sspace0.CopyState(rmax > 1 ? state0r : state0p, state0s);
           sspace1.CopyState(rmax > 1 ? state1r : state1p, state1s);
         }
 
-        SetSchmidtMatrices(num_pr_gates, hd.num_gatexs, s, prev, hd.gatexs);
-
-        // Apply the rest of the gates.
-        ApplyGates(fgates0, loc0[1], fgates0.size(), sim0, state0s);
-        ApplyGates(fgates1, loc1[1], fgates1.size(), sim1, state1s);
+        if (SetSchmidtMatrices(num_pr_gates, hd.num_gatexs,
+                               s, prev, hd.gatexs) == 0) {
+          // Apply the rest of the gates.
+          ApplyGates(fgates0, loc0[1], fgates0.size(), sim0, state0s);
+          ApplyGates(fgates1, loc1[1], fgates1.size(), sim1, state1s);
+        } else {
+          continue;
+        }
 
         auto f = [](unsigned n, unsigned m, uint64_t i,
                     const StateSpace& sspace0, const StateSpace& sspace1,
@@ -335,9 +377,8 @@ struct HybridSimulator final {
         };
 
         // Collect results.
-        ParallelFor::Run(param.num_threads, results.size(), f,
-                         sspace0, sspace1, *rstate0, *rstate1, indices,
-                         results);
+        for_.Run(results.size(), f, sspace0, sspace1, *rstate0, *rstate1,
+                 indices, results);
       }
     }
 
@@ -410,30 +451,53 @@ struct HybridSimulator final {
     return bits;
   }
 
-  static void SetSchmidtMatrices(std::size_t i0, std::size_t i1,
-                                 uint64_t mask, std::vector<unsigned>& prev_k,
-                                 std::vector<GateX>& gatexs) {
+  static unsigned SetSchmidtMatrices(std::size_t i0, std::size_t i1,
+                                     uint64_t path,
+                                     std::vector<unsigned>& prev_k,
+                                     std::vector<GateX>& gatexs) {
     unsigned shift_length = 0;
 
     for (std::size_t i = i0; i < i1; ++i) {
       const auto& gatex = gatexs[i];
-      unsigned k = (mask >> shift_length) & ((1 << gatex.schmidt_bits) - 1);
+
+      if (gatex.schmidt_bits == 0) {
+        // Continue if gatex has Schmidt rank 1.
+        continue;
+      }
+
+      unsigned k = (path >> shift_length) & ((1 << gatex.schmidt_bits) - 1);
       shift_length += gatex.schmidt_bits;
+
       if (k != prev_k[i]) {
-        unsigned part0 = gatex.inverse;
-        unsigned part1 = 1 - part0;
-        {
-          auto begin = gatex.schmidt_decomp[k][part0].begin();
-          auto end = gatex.schmidt_decomp[k][part0].end();
-          std::copy(begin, end, gatex.decomposed0->matrix.begin());
+        if (k >= gatex.schmidt_decomp.size()) {
+          // Invalid path. Returns gatex index plus one to report error in case
+          // of invalid prefix.
+          return i + 1;
         }
-        {
-          auto begin = gatex.schmidt_decomp[k][part1].begin();
-          auto end = gatex.schmidt_decomp[k][part1].end();
-          std::copy(begin, end, gatex.decomposed1->matrix.begin());
-        }
+
+        FillSchmidtMatrices(k, gatex);
+
         prev_k[i] = k;
       }
+    }
+
+    return 0;
+  }
+
+  static void FillSchmidtMatrices(unsigned k, const GateX& gatex) {
+    unsigned part0 = gatex.inverse;
+    unsigned part1 = 1 - part0;
+    {
+      gatex.decomposed0->matrix.resize(gatex.schmidt_decomp[k][part0].size());
+      auto begin = gatex.schmidt_decomp[k][part0].begin();
+      auto end = gatex.schmidt_decomp[k][part0].end();
+      std::copy(begin, end, gatex.decomposed0->matrix.begin());
+    }
+    {
+      gatex.decomposed1->matrix.resize(gatex.schmidt_decomp[k][part1].size());
+      auto begin = gatex.schmidt_decomp[k][part1].begin();
+      auto end = gatex.schmidt_decomp[k][part1].end();
+      std::copy(begin, end, gatex.decomposed1->matrix.begin());
     }
   }
 
@@ -446,14 +510,19 @@ struct HybridSimulator final {
   }
 
   static unsigned SchmidtBits(unsigned size) {
-    if (size >= 1 && size <= 2) {
+    switch (size) {
+    case 1:
+      return 0;
+    case 2:
       return 1;
-    } else if (size >= 3 && size <= 4) {
+    case 3:
       return 2;
+    case 4:
+      return 2;
+    default:
+      // Not supported.
+      return 42;
     }
-
-    // Not supported.
-    return 0;
   }
 
   static bool CreateStates(
@@ -475,6 +544,8 @@ struct HybridSimulator final {
 
     return true;
   }
+
+  For for_;
 };
 
 }  // namespace qsim

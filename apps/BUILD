@@ -1,3 +1,5 @@
+# TODO: remove reliance on getopt (unistd.h) to allow apps to run on Windows.
+
 cc_binary(
     name = "qsim_base",
     srcs = ["qsim_base.cc"],
@@ -21,7 +23,6 @@ cc_binary(
     deps = [
         "//lib:bitstring",
         "//lib:run_qsim_lib",
-        "//lib:util",
     ],
 )
 
@@ -31,7 +32,6 @@ cc_binary(
     deps = [
         "//lib:bitstring",
         "//lib:run_qsimh_lib",
-        "//lib:util",
     ],
 )
 
@@ -41,6 +41,5 @@ cc_binary(
     deps = [
         "//lib:bitstring",
         "//lib:run_qsimh_lib",
-        "//lib:util",
     ],
 )

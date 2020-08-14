@@ -15,14 +15,16 @@
 #ifndef FUSER_BASIC_H_
 #define FUSER_BASIC_H_
 
+#include <map>
 #include <utility>
 #include <vector>
 
+#include "gate.h"
 #include "fuser.h"
 
 namespace qsim {
 
-template <typename Gate>
+template <typename IO, typename Gate>
 struct BasicGateFuser final {
   using GateFused = qsim::GateFused<Gate>;
 
@@ -34,14 +36,12 @@ struct BasicGateFuser final {
    * version of this method below.
    * @param num_qubits The number of qubits acted on by 'gates'.
    * @param gates The gates to be fused.
-   * @param maxtime Maximum number of timesteps to fuse with this operation.
    * @return A vector of fused gate objects. Each element is a set of gates
    *   acting on a specific pair of qubits which can be applied as a group.
    */
-  static std::vector<GateFused> FuseGates(unsigned num_qubits,
-      const std::vector<Gate>& gates, unsigned maxtime) {
-    std::vector<unsigned> times_to_split_at(1, maxtime);
-    return FuseGates(num_qubits, gates, times_to_split_at);
+  static std::vector<GateFused> FuseGates(
+      unsigned num_qubits, const std::vector<Gate>& gates) {
+    return FuseGates(num_qubits, gates.cbegin(), gates.cend(), {});
   }
 
   /**
@@ -49,7 +49,7 @@ struct BasicGateFuser final {
    * applied together. Note that gates fused with this method are not
    * multiplied together until ApplyFusedGate is called on the output.
    * @param num_qubits The number of qubits acted on by 'gates'.
-   * @param gates The gates to be fused.
+   * @param gates The gates to be fused. Gate times should be ordered.
    * @param times_to_split_at Ordered list of time steps at which to separate
    *   fused gates. Each element of the output will contain gates from a single
    *   'window' in this list.
@@ -59,33 +59,106 @@ struct BasicGateFuser final {
   static std::vector<GateFused> FuseGates(
       unsigned num_qubits, const std::vector<Gate>& gates,
       const std::vector<unsigned>& times_to_split_at) {
+    return
+        FuseGates(num_qubits, gates.cbegin(), gates.cend(), times_to_split_at);
+  }
+
+  /**
+   * Stores ordered sets of gates, each acting on two qubits, that can be
+   * applied together. Note that gates fused with this method are not
+   * multiplied together until ApplyFusedGate is called on the output.
+   * To respect specific time boundaries while fusing gates, use the other
+   * version of this method below.
+   * @param num_qubits The number of qubits acted on by gates.
+   * @param gfirst, glast The iterator range [gfirst, glast) to fuse gates in.
+   *   Gate times should be ordered.
+   * @return A vector of fused gate objects. Each element is a set of gates
+   *   acting on a specific pair of qubits which can be applied as a group.
+   */
+  static std::vector<GateFused> FuseGates(
+      unsigned num_qubits,
+      typename std::vector<Gate>::const_iterator gfirst,
+      typename std::vector<Gate>::const_iterator glast) {
+    return FuseGates(num_qubits, gfirst, glast, {});
+  }
+
+  /**
+   * Stores ordered sets of gates, each acting on two qubits, that can be
+   * applied together. Note that gates fused with this method are not
+   * multiplied together until ApplyFusedGate is called on the output.
+   * @param num_qubits The number of qubits acted on by gates.
+   * @param gfirst, glast The iterator range [gfirst, glast) to fuse gates in.
+   *   Gate times should be ordered.
+   * @param times_to_split_at Ordered list of time steps at which to separate
+   *   fused gates. Each element of the output will contain gates from a single
+   *   'window' in this list.
+   * @return A vector of fused gate objects. Each element is a set of gates
+   *   acting on a specific pair of qubits which can be applied as a group.
+   */
+  static std::vector<GateFused> FuseGates(
+      unsigned num_qubits,
+      typename std::vector<Gate>::const_iterator gfirst,
+      typename std::vector<Gate>::const_iterator glast,
+      const std::vector<unsigned>& times_to_split_at) {
     std::vector<GateFused> gates_fused;
 
-    // Sequence of two-qubit gates and fixed single-qubit gates.
+    if (gfirst >= glast) return gates_fused;
+
+    std::size_t num_gates = glast - gfirst;
+
+    gates_fused.reserve(num_gates);
+
+    // Merge with measurement gate times to separate fused gates at.
+    auto times = MergeWithMeasurementTimes(gfirst, glast, times_to_split_at);
+
+    // Map to keep track of measurement gates with equal times.
+    std::map<unsigned, std::vector<const Gate*>> measurement_gates;
+
+    // Sequence of top level gates the other gates get fused to.
     std::vector<const Gate*> gates_seq;
 
     // Lattice of gates: qubits "hyperplane" and time direction.
     std::vector<std::vector<const Gate*>> gates_lat(num_qubits);
 
-    // Current unfused gate index.
-    std::size_t gate_index = 0;
+    // Current unfused gate.
+    auto gate_it = gfirst;
 
-    for (std::size_t l = 0; l < times_to_split_at.size(); ++l) {
+    for (std::size_t l = 0; l < times.size(); ++l) {
       gates_seq.resize(0);
-      gates_seq.reserve(gates.size());
+      gates_seq.reserve(num_gates);
 
       for (unsigned k = 0; k < num_qubits; ++k) {
         gates_lat[k].resize(0);
         gates_lat[k].reserve(128);
       }
 
+      auto prev_time = gate_it->time;
+
       // Fill gates_seq and gates_lat in.
-      for (; gate_index < gates.size(); ++gate_index) {
-        const auto& gate = gates[gate_index];
+      for (; gate_it < glast; ++gate_it) {
+        const auto& gate = *gate_it;
 
-        if (gates[gate_index].time > times_to_split_at[l]) break;
+        if (gate.time > times[l]) break;
 
-        if (gate.num_qubits == 1) {
+        if (gate.time < prev_time) {
+          // This function assumes that gate times are ordered.
+          // Just stop silently if this is not the case.
+          IO::errorf("gate times should be ordered.\n");
+          gates_fused.resize(0);
+          return gates_fused;
+        }
+
+        prev_time = gate.time;
+
+        if (gate.kind == gate::kMeasurement) {
+          auto& mea_gates_at_time = measurement_gates[gate.time];
+          if (mea_gates_at_time.size() == 0) {
+            gates_seq.push_back(&gate);
+            mea_gates_at_time.reserve(num_qubits);
+          }
+
+          mea_gates_at_time.push_back(&gate);
+        } else if (gate.num_qubits == 1) {
           gates_lat[gate.qubits[0]].push_back(&gate);
           if (gate.unfusible) {
             gates_seq.push_back(&gate);
@@ -99,9 +172,13 @@ struct BasicGateFuser final {
 
       std::vector<unsigned> last(num_qubits, 0);
 
+      const Gate* delayed_measurement_gate = nullptr;
+
       // Fuse gates.
       for (auto pgate : gates_seq) {
-        if (pgate->num_qubits == 1) {
+        if (pgate->kind == gate::kMeasurement) {
+          delayed_measurement_gate = pgate;
+        } else if (pgate->num_qubits == 1) {
           unsigned q0 = pgate->qubits[0];
 
           GateFused gate_f = {pgate->kind, pgate->time, 1, {q0}, pgate, {}};
@@ -150,17 +227,71 @@ struct BasicGateFuser final {
 
         gates_fused.push_back(std::move(gate_f));
       }
+
+      if (delayed_measurement_gate != nullptr) {
+        auto pgate = delayed_measurement_gate;
+
+        const auto& mea_gates_at_time = measurement_gates[pgate->time];
+
+        GateFused gate_f = {pgate->kind, pgate->time, 0, {}, pgate, {}};
+
+        // Fuse measurement gates with equal times.
+
+        for (const auto* pgate : mea_gates_at_time) {
+          gate_f.num_qubits += pgate->num_qubits;
+          gate_f.qubits.insert(gate_f.qubits.end(),
+                               pgate->qubits.begin(), pgate->qubits.end());
+        }
+
+        gates_fused.push_back(std::move(gate_f));
+      }
+
+      if (gate_it == glast) break;
     }
 
     return gates_fused;
   }
 
  private:
+  static std::vector<unsigned> MergeWithMeasurementTimes(
+      typename std::vector<Gate>::const_iterator gfirst,
+      typename std::vector<Gate>::const_iterator glast,
+      const std::vector<unsigned>& times) {
+    std::vector<unsigned> times2;
+    times2.reserve(glast - gfirst + times.size());
+
+    std::size_t last = 0;
+
+    for (auto gate_it = gfirst; gate_it < glast; ++gate_it) {
+      const auto& gate = *gate_it;
+
+      if (gate.kind == gate::kMeasurement
+          && (times2.size() == 0 || times2.back() < gate.time)) {
+        times2.push_back(gate.time);
+      }
+
+      if (last < times.size() && gate.time > times[last]) {
+        while (last < times.size() && times[last] <= gate.time) {
+          unsigned prev = times[last++];
+          times2.push_back(prev);
+          while (last < times.size() && times[last] <= prev) ++last;
+        }
+      }
+    }
+
+    if (times2.size() == 0 || times2.back() < (glast - 1)->time) {
+      times2.push_back((glast - 1)->time);
+    }
+
+    return times2;
+  }
+
   static unsigned Advance(unsigned k, const std::vector<const Gate*>& wl,
-                     std::vector<const Gate*>& gates) {
+                          std::vector<const Gate*>& gates) {
     while (k < wl.size() && wl[k]->num_qubits == 1 && !wl[k]->unfusible) {
       gates.push_back(wl[k++]);
     }
+
     return k;
   }
 

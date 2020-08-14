@@ -16,26 +16,42 @@
 
 #include "gtest/gtest.h"
 
-#include "../lib/parfor.h"
+#include "../lib/formux.h"
 #include "../lib/simulator_sse.h"
 #include "../lib/statespace_sse.h"
 
 namespace qsim {
 
+TEST(StateSpaceSSETest, NormSmall) {
+  TestNormSmall<StateSpaceSSE<For>>();
+}
+
 TEST(StateSpaceSSETest, NormAndInnerProductSmall) {
-  TestNormAndInnerProductSmall<StateSpaceSSE<ParallelFor>>();
+  TestNormAndInnerProductSmall<StateSpaceSSE<For>>();
 }
 
 TEST(StateSpaceSSETest, NormAndInnerProduct) {
-  TestNormAndInnerProduct<SimulatorSSE<ParallelFor>>();
+  TestNormAndInnerProduct<SimulatorSSE<For>>();
 }
 
 TEST(StateSpaceSSETest, SamplingSmall) {
-  TestSamplingSmall<StateSpaceSSE<ParallelFor>>();
+  TestSamplingSmall<StateSpaceSSE<For>>();
 }
 
 TEST(StateSpaceSSETest, SamplingCrossEntropyDifference) {
-  TestSamplingCrossEntropyDifference<SimulatorSSE<ParallelFor>>();
+  TestSamplingCrossEntropyDifference<SimulatorSSE<For>>();
+}
+
+TEST(StateSpaceSSETest, Ordering) {
+  TestOrdering<StateSpaceSSE<For>>();
+}
+
+TEST(StateSpaceSSETest, MeasurementSmall) {
+  TestMeasurementSmall<StateSpaceSSE<For>, For>();
+}
+
+TEST(StateSpaceSSETest, MeasurementLarge) {
+  TestMeasurementLarge<SimulatorSSE<For>>();
 }
 
 }  // namespace qsim

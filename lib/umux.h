@@ -12,34 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "simulator_testfixture.h"
+#ifndef UMUX_H_
+#define UMUX_H_
 
-#include "gtest/gtest.h"
-
-#include "../lib/formux.h"
-#include "../lib/simulator_basic.h"
-
+#include "unitary_calculator_basic.h"
 namespace qsim {
+namespace unitary{
+  template <typename For>
+  using UnitaryCalculator = UnitaryCalculatorBasic<For>;
+}  // namespace unitary
+}  // namepsace qsim
+#endif
 
-TEST(SimulatorBasicTest, ApplyGate1) {
-  TestApplyGate1<SimulatorBasic<For, double>>();
-}
-
-TEST(SimulatorBasicTest, ApplyGate2) {
-  TestApplyGate2<SimulatorBasic<For, double>>();
-}
-
-TEST(SimulatorBasicTest, ApplyGate3) {
-  TestApplyGate3<SimulatorBasic<For, double>>();
-}
-
-TEST(SimulatorBasicTest, ApplyGate5) {
-  TestApplyGate5<SimulatorBasic<For, double>>();
-}
-
-}  // namespace qsim
-
-int main(int argc, char** argv) {
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
+#endif  // UMUX_H_
