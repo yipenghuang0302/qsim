@@ -15,7 +15,10 @@
 #ifndef FUSER_H_
 #define FUSER_H_
 
+#include <cstdint>
 #include <vector>
+
+#include "matrix.h"
 
 namespace qsim {
 
@@ -26,27 +29,60 @@ namespace qsim {
 template <typename Gate>
 struct GateFused {
   /**
-   * Kind of the first ("master") gate.
+   * Kind of the first ("parent") gate.
    */
   typename Gate::GateKind kind;
   /**
-   * The time index of the first ("master") gate.
+   * The time index of the first ("parent") gate.
    */
   unsigned time;
-  unsigned num_qubits;
   /**
-   * A list of qubits these gates act upon.
+   * A list of qubits these gates act upon. Control qubits for
+   * explicitly-controlled gates are excluded from this list.
    */
   std::vector<unsigned> qubits;
   /**
-   * Pointer to the first ("master") gate.
+   * Pointer to the first ("parent") gate.
    */
-  const Gate* pmaster;
+  const Gate* parent;
   /**
    * Ordered list of component gates.
    */
   std::vector<const Gate*> gates;
 };
+
+/**
+ * Multiplies component gate matrices of a fused gate.
+ * @param gate Fused gate.
+ * @return Matrix product of component matrices.
+ */
+template <typename fp_type, typename FusedGate>
+inline Matrix<fp_type> CalculateFusedMatrix(const FusedGate& gate) {
+  Matrix<fp_type> matrix;
+  MatrixIdentity(unsigned{1} << gate.qubits.size(), matrix);
+
+  for (auto pgate : gate.gates) {
+    if (gate.qubits.size() == pgate->qubits.size()) {
+      MatrixMultiply(gate.qubits.size(), pgate->matrix, matrix);
+    } else {
+      unsigned mask = 0;
+
+      for (auto q : pgate->qubits) {
+        for (std::size_t i = 0; i < gate.qubits.size(); ++i) {
+          if (q == gate.qubits[i]) {
+            mask |= unsigned{1} << i;
+            break;
+          }
+        }
+      }
+
+      MatrixMultiply(mask, pgate->qubits.size(), pgate->matrix,
+                     gate.qubits.size(), matrix);
+    }
+  }
+
+  return matrix;
+}
 
 }  // namespace qsim
 

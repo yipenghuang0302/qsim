@@ -6,12 +6,14 @@ package(default_visibility = ["//visibility:public"])
 cc_library(
     name = "qsim_lib",
     hdrs = [
+        "bits.h",
         "bitstring.h",
         "circuit_qsim_parser.h",
         "circuit.h",
         "formux.h",
-        "fuser_basic.h",
         "fuser.h",
+        "fuser_basic.h",
+        "fuser_mqubit.h",
         "gate.h",
         "gate_appl.h",
         "gates_cirq.h",
@@ -45,11 +47,13 @@ cc_library(
 cc_library(
     name = "run_qsim_lib",
     hdrs = [
+        "bits.h",
         "circuit.h",
         "circuit_qsim_parser.h",
         "formux.h",
         "fuser.h",
         "fuser_basic.h",
+        "fuser_mqubit.h",
         "gate.h",
         "gate_appl.h",
         "gates_qsim.h",
@@ -80,11 +84,13 @@ cc_library(
 cc_library(
     name = "run_qsimh_lib",
     hdrs = [
+        "bits.h",
         "circuit.h",
         "circuit_qsim_parser.h",
         "formux.h",
         "fuser.h",
         "fuser_basic.h",
+        "fuser_mqubit.h",
         "gate.h",
         "gate_appl.h",
         "gates_qsim.h",
@@ -119,8 +125,14 @@ cc_library(
 )
 
 cc_library(
+    name = "bits",
+    hdrs = ["bits.h"],
+)
+
+cc_library(
     name = "matrix",
     hdrs = ["matrix.h"],
+    deps = [":bits"],
 )
 
 cc_library(
@@ -177,6 +189,7 @@ cc_library(
     name = "gate_appl",
     hdrs = ["gate_appl.h"],
     deps = [
+        ":fuser",
         ":gate",
         ":matrix",
     ],
@@ -185,7 +198,10 @@ cc_library(
 cc_library(
     name = "gates_cirq",
     hdrs = ["gates_cirq.h"],
-    deps = [":gate"],
+    deps = [
+        ":gate",
+        ":matrix",
+    ],
 )
 
 cc_library(
@@ -216,11 +232,21 @@ cc_library(
 cc_library(
     name = "fuser",
     hdrs = ["fuser.h"],
+    deps = [":matrix"],
 )
 
 cc_library(
     name = "fuser_basic",
     hdrs = ["fuser_basic.h"],
+    deps = [
+        ":fuser",
+        ":gate",
+    ],
+)
+
+cc_library(
+    name = "fuser_mqubit",
+    hdrs = ["fuser_mqubit.h"],
     deps = [
         ":fuser",
         ":gate",
@@ -298,19 +324,28 @@ cc_library(
 cc_library(
     name = "simulator_avx",
     hdrs = ["simulator_avx.h"],
-    deps = [":statespace_avx"],
+    deps = [
+        ":bits",
+        ":statespace_avx",
+    ],
 )
 
 cc_library(
     name = "simulator_basic",
     hdrs = ["simulator_basic.h"],
-    deps = [":statespace_basic"],
+    deps = [
+        ":bits",
+        ":statespace_basic",
+    ],
 )
 
 cc_library(
     name = "simulator_sse",
     hdrs = ["simulator_sse.h"],
-    deps = [":statespace_sse"],
+    deps = [
+        ":bits",
+        ":statespace_sse",
+    ],
 )
 
 # All three state-vector simulators with multiplexer

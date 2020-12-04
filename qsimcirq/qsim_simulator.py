@@ -34,7 +34,7 @@ from qsimcirq import qsim
 import qsimcirq.qsim_circuit as qsimc
 
 
-class QSimSimulatorState(sim.WaveFunctionSimulatorState):
+class QSimSimulatorState(sim.StateVectorSimulatorState):
 
     def __init__(self,
                  qsim_data: np.ndarray,
@@ -43,7 +43,7 @@ class QSimSimulatorState(sim.WaveFunctionSimulatorState):
       super().__init__(state_vector=state_vector, qubit_map=qubit_map)
 
 
-class QSimSimulatorTrialResult(sim.WaveFunctionTrialResult):
+class QSimSimulatorTrialResult(sim.StateVectorTrialResult):
 
     def __init__(self,
                  params: study.ParamResolver,
@@ -63,7 +63,7 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
           'Keys "c" & "i" are reserved for internal use and cannot be used in QSimCircuit instantiation.'
       )
     self._prng = value.parse_random_state(seed)
-    self.qsim_options = {'t': 1, 'v': 0}
+    self.qsim_options = {'t': 1, 'f': 2, 'v': 0}
     self.qsim_options.update(qsim_options)
 
   def get_seed(self):

@@ -74,6 +74,9 @@ class UnitaryCalculatorBasic final {
   using Unitary = typename UnitarySpace::Unitary;
   using fp_type = typename UnitarySpace::fp_type;
 
+  using StateSpace = UnitarySpace;
+  using State = Unitary;
+
   template <typename... ForArgs>
   explicit UnitaryCalculatorBasic(unsigned num_qubits, ForArgs&&... args)
       : for_(args...), num_qubits_(num_qubits) {}
@@ -92,6 +95,21 @@ class UnitaryCalculatorBasic final {
       // Assume qs[0] < qs[1].
       ApplyGate2(qs[0], qs[1], matrix, state);
     }
+  }
+
+  /**
+   * Applies a controlled gate using non-vectorized instructions.
+   * This function is not implemented.
+   * @param qs Indices of the qubits affected by this gate.
+   * @param cqs Indices of control qubits.
+   * @param cmask Bit mask of control qubit values.
+   * @param matrix Matrix representation of the gate to be applied.
+   * @param state The state of the system, to be updated by this method.
+   */
+  void ApplyControlledGate(const std::vector<unsigned>& qs,
+                           const std::vector<unsigned>& cqs, uint64_t cmask,
+                           const fp_type* matrix, Unitary& state) const {
+    // Not implemented.
   }
 
  private:

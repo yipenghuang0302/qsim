@@ -32,25 +32,36 @@ struct BasicGateFuser final {
   using GateFused = qsim::GateFused<Gate>;
 
   /**
+   * User-specified parameters for gate fusion.
+   * BasicGateFuser does not use any parameters.
+   */
+  struct Parameter {
+    unsigned verbosity = 0;
+  };
+
+  /**
    * Stores ordered sets of gates, each acting on two qubits, that can be
    * applied together. Note that gates fused with this method are not
    * multiplied together until ApplyFusedGate is called on the output.
    * To respect specific time boundaries while fusing gates, use the other
    * version of this method below.
+   * @param param Options for gate fusion.
    * @param num_qubits The number of qubits acted on by 'gates'.
    * @param gates The gates to be fused.
    * @return A vector of fused gate objects. Each element is a set of gates
    *   acting on a specific pair of qubits which can be applied as a group.
    */
-  static std::vector<GateFused> FuseGates(
-      unsigned num_qubits, const std::vector<Gate>& gates) {
-    return FuseGates(num_qubits, gates.cbegin(), gates.cend(), {});
+  static std::vector<GateFused> FuseGates(const Parameter& param,
+                                          unsigned num_qubits,
+                                          const std::vector<Gate>& gates) {
+    return FuseGates(param, num_qubits, gates.cbegin(), gates.cend(), {});
   }
 
   /**
    * Stores ordered sets of gates, each acting on two qubits, that can be
    * applied together. Note that gates fused with this method are not
    * multiplied together until ApplyFusedGate is called on the output.
+   * @param param Options for gate fusion.
    * @param num_qubits The number of qubits acted on by 'gates'.
    * @param gates The gates to be fused. Gate times should be ordered.
    * @param times_to_split_at Ordered list of time steps at which to separate
@@ -60,10 +71,11 @@ struct BasicGateFuser final {
    *   acting on a specific pair of qubits which can be applied as a group.
    */
   static std::vector<GateFused> FuseGates(
+      const Parameter& param,
       unsigned num_qubits, const std::vector<Gate>& gates,
       const std::vector<unsigned>& times_to_split_at) {
-    return
-        FuseGates(num_qubits, gates.cbegin(), gates.cend(), times_to_split_at);
+    return FuseGates(param, num_qubits, gates.cbegin(), gates.cend(),
+                     times_to_split_at);
   }
 
   /**
@@ -72,6 +84,7 @@ struct BasicGateFuser final {
    * multiplied together until ApplyFusedGate is called on the output.
    * To respect specific time boundaries while fusing gates, use the other
    * version of this method below.
+   * @param param Options for gate fusion.
    * @param num_qubits The number of qubits acted on by gates.
    * @param gfirst, glast The iterator range [gfirst, glast) to fuse gates in.
    *   Gate times should be ordered.
@@ -79,16 +92,17 @@ struct BasicGateFuser final {
    *   acting on a specific pair of qubits which can be applied as a group.
    */
   static std::vector<GateFused> FuseGates(
-      unsigned num_qubits,
+      const Parameter& param, unsigned num_qubits,
       typename std::vector<Gate>::const_iterator gfirst,
       typename std::vector<Gate>::const_iterator glast) {
-    return FuseGates(num_qubits, gfirst, glast, {});
+    return FuseGates(param, num_qubits, gfirst, glast, {});
   }
 
   /**
    * Stores ordered sets of gates, each acting on two qubits, that can be
    * applied together. Note that gates fused with this method are not
    * multiplied together until ApplyFusedGate is called on the output.
+   * @param param Options for gate fusion.
    * @param num_qubits The number of qubits acted on by gates.
    * @param gfirst, glast The iterator range [gfirst, glast) to fuse gates in.
    *   Gate times should be ordered.
@@ -99,7 +113,7 @@ struct BasicGateFuser final {
    *   acting on a specific pair of qubits which can be applied as a group.
    */
   static std::vector<GateFused> FuseGates(
-      unsigned num_qubits,
+      const Parameter& param, unsigned num_qubits,
       typename std::vector<Gate>::const_iterator gfirst,
       typename std::vector<Gate>::const_iterator glast,
       const std::vector<unsigned>& times_to_split_at) {
@@ -161,12 +175,20 @@ struct BasicGateFuser final {
           }
 
           mea_gates_at_time.push_back(&gate);
-        } else if (gate.num_qubits == 1) {
+        } else if (gate.controlled_by.size() > 0 || gate.qubits.size() > 2) {
+          for (auto q : gate.qubits) {
+            gates_lat[q].push_back(&gate);
+          }
+          for (auto q : gate.controlled_by) {
+            gates_lat[q].push_back(&gate);
+          }
+          gates_seq.push_back(&gate);
+        } else if (gate.qubits.size() == 1) {
           gates_lat[gate.qubits[0]].push_back(&gate);
           if (gate.unfusible) {
             gates_seq.push_back(&gate);
           }
-        } else if (gate.num_qubits == 2) {
+        } else if (gate.qubits.size() == 2) {
           gates_lat[gate.qubits[0]].push_back(&gate);
           gates_lat[gate.qubits[1]].push_back(&gate);
           gates_seq.push_back(&gate);
@@ -181,23 +203,45 @@ struct BasicGateFuser final {
       for (auto pgate : gates_seq) {
         if (pgate->kind == gate::kMeasurement) {
           delayed_measurement_gate = pgate;
-        } else if (pgate->num_qubits == 1) {
+        } else if (pgate->qubits.size() > 2
+                   || pgate->controlled_by.size() > 0) {
+          // Multi-qubit or controlled gate.
+
+          for (auto q : pgate->qubits) {
+            unsigned l = last[q];
+            if (gates_lat[q][l] != pgate) {
+              last[q] = AddOrphanedQubit(q, l, gates_lat, gates_fused);
+            }
+            ++last[q];
+          }
+
+          for (auto q : pgate->controlled_by) {
+            unsigned l = last[q];
+            if (gates_lat[q][l] != pgate) {
+              last[q] = AddOrphanedQubit(q, l, gates_lat, gates_fused);
+            }
+            ++last[q];
+          }
+
+          gates_fused.push_back({pgate->kind, pgate->time, pgate->qubits,
+                                 pgate, {pgate}});
+        } else if (pgate->qubits.size() == 1) {
           unsigned q0 = pgate->qubits[0];
 
-          GateFused gate_f = {pgate->kind, pgate->time, 1, {q0}, pgate, {}};
+          GateFused gate_f = {pgate->kind, pgate->time, {q0}, pgate, {}};
 
           last[q0] = Advance(last[q0], gates_lat[q0], gate_f.gates);
           gate_f.gates.push_back(gates_lat[q0][last[q0]]);
           last[q0] = Advance(last[q0] + 1, gates_lat[q0], gate_f.gates);
 
           gates_fused.push_back(std::move(gate_f));
-        } else if (pgate->num_qubits == 2) {
+        } else if (pgate->qubits.size() == 2) {
           unsigned q0 = pgate->qubits[0];
           unsigned q1 = pgate->qubits[1];
 
           if (Done(last[q0], pgate->time, gates_lat[q0])) continue;
 
-          GateFused gate_f = {pgate->kind, pgate->time, 2, {q0, q1}, pgate, {}};
+          GateFused gate_f = {pgate->kind, pgate->time, {q0, q1}, pgate, {}};
 
           do {
             last[q0] = Advance(last[q0], gates_lat[q0], gate_f.gates);
@@ -219,16 +263,7 @@ struct BasicGateFuser final {
         if (l == gates_lat[q].size()) continue;
 
         // Orphaned qubit.
-
-        auto pgate = gates_lat[q][l];
-
-        GateFused gate_f = {pgate->kind, pgate->time, 1, {q}, pgate, {}};
-        gate_f.gates.push_back(gates_lat[q][l]);
-
-        l = Advance(l + 1, gates_lat[q], gate_f.gates);
-        // Here l == gates_lat[q].size().
-
-        gates_fused.push_back(std::move(gate_f));
+        AddOrphanedQubit(q, l, gates_lat, gates_fused);
       }
 
       if (delayed_measurement_gate != nullptr) {
@@ -236,12 +271,11 @@ struct BasicGateFuser final {
 
         const auto& mea_gates_at_time = measurement_gates[pgate->time];
 
-        GateFused gate_f = {pgate->kind, pgate->time, 0, {}, pgate, {}};
+        GateFused gate_f = {pgate->kind, pgate->time, {}, pgate, {}};
 
         // Fuse measurement gates with equal times.
 
         for (const auto* pgate : mea_gates_at_time) {
-          gate_f.num_qubits += pgate->num_qubits;
           gate_f.qubits.insert(gate_f.qubits.end(),
                                pgate->qubits.begin(), pgate->qubits.end());
         }
@@ -291,7 +325,8 @@ struct BasicGateFuser final {
 
   static unsigned Advance(unsigned k, const std::vector<const Gate*>& wl,
                           std::vector<const Gate*>& gates) {
-    while (k < wl.size() && wl[k]->num_qubits == 1 && !wl[k]->unfusible) {
+    while (k < wl.size() && wl[k]->qubits.size() == 1
+           && wl[k]->controlled_by.size() == 0 && !wl[k]->unfusible) {
       gates.push_back(wl[k++]);
     }
 
@@ -305,7 +340,24 @@ struct BasicGateFuser final {
 
   static bool NextGate(unsigned k1, const std::vector<const Gate*>& wl1,
                        unsigned k2, const std::vector<const Gate*>& wl2) {
-    return k1 < wl1.size() && k2 < wl2.size() && wl1[k1] == wl2[k2];
+    return k1 < wl1.size() && k2 < wl2.size() && wl1[k1] == wl2[k2]
+        && wl1[k1]->qubits.size() < 3 && wl1[k1]->controlled_by.size() == 0;
+  }
+
+  template <typename GatesLat>
+  static unsigned AddOrphanedQubit(unsigned q, unsigned k,
+                                   const GatesLat& gates_lat,
+                                   std::vector<GateFused>& gates_fused) {
+    auto pgate = gates_lat[q][k];
+
+    GateFused gate_f = {pgate->kind, pgate->time, {q}, pgate, {}};
+    gate_f.gates.push_back(pgate);
+
+    k = Advance(k + 1, gates_lat[q], gate_f.gates);
+
+    gates_fused.push_back(std::move(gate_f));
+
+    return k;
   }
 };
 

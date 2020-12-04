@@ -67,10 +67,11 @@ struct GateId1 {
   static constexpr GateKind kind = kGateId1;
   static constexpr char name[] = "id1";
   static constexpr unsigned num_qubits = 1;
+  static constexpr bool symmetric = true;
 
   static GateQSim<fp_type> Create(unsigned time, unsigned q0) {
     return CreateGate<GateQSim<fp_type>, GateId1>(
-        time, q0, {1, 0, 0, 0, 0, 0, 1, 0});
+        time, {q0}, {1, 0, 0, 0, 0, 0, 1, 0});
   }
 };
 
@@ -82,12 +83,13 @@ struct GateHd {
   static constexpr GateKind kind = kGateHd;
   static constexpr char name[] = "h";
   static constexpr unsigned num_qubits = 1;
+  static constexpr bool symmetric = true;
 
   static constexpr fp_type is2 = static_cast<fp_type>(is2_double);
 
   static GateQSim<fp_type> Create(unsigned time, unsigned q0) {
     return CreateGate<GateQSim<fp_type>, GateHd>(
-        time, q0, {is2, 0, is2, 0, is2, 0, -is2, 0});
+        time, {q0}, {is2, 0, is2, 0, is2, 0, -is2, 0});
   }
 };
 
@@ -99,12 +101,13 @@ struct GateT {
   static constexpr GateKind kind = kGateT;
   static constexpr char name[] = "t";
   static constexpr unsigned num_qubits = 1;
+  static constexpr bool symmetric = true;
 
   static constexpr fp_type is2 = static_cast<fp_type>(is2_double);
 
   static GateQSim<fp_type> Create(unsigned time, unsigned q0) {
     return CreateGate<GateQSim<fp_type>, GateT>(
-        time, q0, {1, 0, 0, 0, 0, 0, is2, is2});
+        time, {q0}, {1, 0, 0, 0, 0, 0, is2, is2});
   }
 };
 
@@ -116,10 +119,11 @@ struct GateX {
   static constexpr GateKind kind = kGateX;
   static constexpr char name[] = "x";
   static constexpr unsigned num_qubits = 1;
+  static constexpr bool symmetric = true;
 
   static GateQSim<fp_type> Create(unsigned time, unsigned q0) {
     return CreateGate<GateQSim<fp_type>, GateX>(
-        time, q0, {0, 0, 1, 0, 1, 0, 0, 0});
+        time, {q0}, {0, 0, 1, 0, 1, 0, 0, 0});
   }
 };
 
@@ -131,10 +135,11 @@ struct GateY {
   static constexpr GateKind kind = kGateY;
   static constexpr char name[] = "y";
   static constexpr unsigned num_qubits = 1;
+  static constexpr bool symmetric = true;
 
   static GateQSim<fp_type> Create(unsigned time, unsigned q0) {
     return CreateGate<GateQSim<fp_type>, GateY>(
-        time, q0, {0, 0, 0, -1, 0, 1, 0, 0});
+        time, {q0}, {0, 0, 0, -1, 0, 1, 0, 0});
   }
 };
 
@@ -146,10 +151,11 @@ struct GateZ {
   static constexpr GateKind kind = kGateZ;
   static constexpr char name[] = "z";
   static constexpr unsigned num_qubits = 1;
+  static constexpr bool symmetric = true;
 
   static GateQSim<fp_type> Create(unsigned time, unsigned q0) {
     return CreateGate<GateQSim<fp_type>, GateZ>(
-        time, q0, {1, 0, 0, 0, 0, 0, -1, 0});
+        time, {q0}, {1, 0, 0, 0, 0, 0, -1, 0});
   }
 };
 
@@ -161,12 +167,13 @@ struct GateX2 {
   static constexpr GateKind kind = kGateX2;
   static constexpr char name[] = "x_1_2";
   static constexpr unsigned num_qubits = 1;
+  static constexpr bool symmetric = true;
 
   static constexpr fp_type h = static_cast<fp_type>(h_double);
 
   static GateQSim<fp_type> Create(unsigned time, unsigned q0) {
     return CreateGate<GateQSim<fp_type>, GateX2>(
-        time, q0, {h, h, h, -h, h, -h, h, h});
+        time, {q0}, {h, h, h, -h, h, -h, h, h});
   }
 };
 
@@ -178,12 +185,13 @@ struct GateY2 {
   static constexpr GateKind kind = kGateY2;
   static constexpr char name[] = "y_1_2";
   static constexpr unsigned num_qubits = 1;
+  static constexpr bool symmetric = true;
 
   static constexpr fp_type h = static_cast<fp_type>(h_double);
 
   static GateQSim<fp_type> Create(unsigned time, unsigned q0) {
     return CreateGate<GateQSim<fp_type>, GateY2>(
-        time, q0, {h, h, -h, -h, h, h, h, h});
+        time, {q0}, {h, h, -h, -h, h, h, h, h});
   }
 };
 
@@ -196,6 +204,7 @@ struct GateRX {
   static constexpr GateKind kind = kGateRX;
   static constexpr char name[] = "rx";
   static constexpr unsigned num_qubits = 1;
+  static constexpr bool symmetric = true;
 
   static GateQSim<fp_type> Create(unsigned time, unsigned q0, fp_type phi) {
     fp_type phi2 = -0.5 * phi;
@@ -203,7 +212,7 @@ struct GateRX {
     fp_type s = std::sin(phi2);
 
     return CreateGate<GateQSim<fp_type>, GateRX>(
-        time, q0, {c, 0, 0, s, 0, s, c, 0}, {phi});
+        time, {q0}, {c, 0, 0, s, 0, s, c, 0}, {phi});
   }
 };
 
@@ -216,6 +225,7 @@ struct GateRY {
   static constexpr GateKind kind = kGateRY;
   static constexpr char name[] = "ry";
   static constexpr unsigned num_qubits = 1;
+  static constexpr bool symmetric = true;
 
   static GateQSim<fp_type> Create(unsigned time, unsigned q0, fp_type phi) {
     fp_type phi2 = -0.5 * phi;
@@ -223,7 +233,7 @@ struct GateRY {
     fp_type s = std::sin(phi2);
 
     return CreateGate<GateQSim<fp_type>, GateRY>(
-        time, q0, {c, 0, s, 0, -s, 0, c, 0}, {phi});
+        time, {q0}, {c, 0, s, 0, -s, 0, c, 0}, {phi});
   }
 };
 
@@ -236,6 +246,7 @@ struct GateRZ {
   static constexpr GateKind kind = kGateRZ;
   static constexpr char name[] = "rz";
   static constexpr unsigned num_qubits = 1;
+  static constexpr bool symmetric = true;
 
   static GateQSim<fp_type> Create(unsigned time, unsigned q0, fp_type phi) {
     fp_type phi2 = -0.5 * phi;
@@ -243,7 +254,7 @@ struct GateRZ {
     fp_type s = std::sin(phi2);
 
     return CreateGate<GateQSim<fp_type>, GateRZ>(
-        time, q0, {c, s, 0, 0, 0, 0, c, -s}, {phi});
+        time, {q0}, {c, s, 0, 0, 0, 0, c, -s}, {phi});
   }
 };
 
@@ -255,6 +266,7 @@ struct GateRXY {
   static constexpr GateKind kind = kGateRXY;
   static constexpr char name[] = "rxy";
   static constexpr unsigned num_qubits = 1;
+  static constexpr bool symmetric = true;
 
   static GateQSim<fp_type> Create(
       unsigned time, unsigned q0, fp_type theta, fp_type phi) {
@@ -265,7 +277,7 @@ struct GateRXY {
     fp_type st = std::sin(theta) * sp;
 
     return CreateGate<GateQSim<fp_type>, GateRXY>(
-        time, q0, {cp, 0, st, ct, -st, ct, cp, 0}, {theta, phi});
+        time, {q0}, {cp, 0, st, ct, -st, ct, cp, 0}, {theta, phi});
   }
 };
 
@@ -277,6 +289,7 @@ struct GateHZ2 {
   static constexpr GateKind kind = kGateHZ2;
   static constexpr char name[] = "hz_1_2";
   static constexpr unsigned num_qubits = 1;
+  static constexpr bool symmetric = true;
 
   static constexpr fp_type h = static_cast<fp_type>(h_double);
 
@@ -284,7 +297,7 @@ struct GateHZ2 {
 
   static GateQSim<fp_type> Create(unsigned time, unsigned q0) {
     return CreateGate<GateQSim<fp_type>, GateHZ2>(
-        time, q0, {h, h, 0, -is2, is2, 0, h, h});
+        time, {q0}, {h, h, 0, -is2, is2, 0, h, h});
   }
 };
 
@@ -296,10 +309,11 @@ struct GateS {
   static constexpr GateKind kind = kGateS;
   static constexpr char name[] = "s";
   static constexpr unsigned num_qubits = 1;
+  static constexpr bool symmetric = true;
 
   static GateQSim<fp_type> Create(unsigned time, unsigned q0) {
     return CreateGate<GateQSim<fp_type>, GateS>(
-        time, q0, {1, 0, 0, 0, 0, 0, 0, 1});
+        time, {q0}, {1, 0, 0, 0, 0, 0, 0, 1});
   }
 };
 
@@ -313,13 +327,14 @@ struct GateId2 {
   static constexpr GateKind kind = kGateId2;
   static constexpr char name[] = "id2";
   static constexpr unsigned num_qubits = 2;
+  static constexpr bool symmetric = true;
 
   static GateQSim<fp_type> Create(unsigned time, unsigned q0, unsigned q1) {
     return CreateGate<GateQSim<fp_type>, GateId2>(
-        time, q0, q1, {1, 0, 0, 0, 0, 0, 0, 0,
-                       0, 0, 1, 0, 0, 0, 0, 0,
-                       0, 0, 0, 0, 1, 0, 0, 0,
-                       0, 0, 0, 0, 0, 0, 1, 0});
+        time, {q0, q1}, {1, 0, 0, 0, 0, 0, 0, 0,
+                         0, 0, 1, 0, 0, 0, 0, 0,
+                         0, 0, 0, 0, 1, 0, 0, 0,
+                         0, 0, 0, 0, 0, 0, 1, 0});
   }
 
   static schmidt_decomp_type<fp_type> SchmidtDecomp() {
@@ -337,13 +352,14 @@ struct GateCZ {
   static constexpr GateKind kind = kGateCZ;
   static constexpr char name[] = "cz";
   static constexpr unsigned num_qubits = 2;
+  static constexpr bool symmetric = true;
 
   static GateQSim<fp_type> Create(unsigned time, unsigned q0, unsigned q1) {
     return CreateGate<GateQSim<fp_type>, GateCZ>(
-        time, q0, q1, {1, 0, 0, 0, 0, 0, 0, 0,
-                       0, 0, 1, 0, 0, 0, 0, 0,
-                       0, 0, 0, 0, 1, 0, 0, 0,
-                       0, 0, 0, 0, 0, 0, -1, 0});
+        time, {q0, q1}, {1, 0, 0, 0, 0, 0, 0, 0,
+                         0, 0, 1, 0, 0, 0, 0, 0,
+                         0, 0, 0, 0, 1, 0, 0, 0,
+                         0, 0, 0, 0, 0, 0, -1, 0});
   }
 
   static schmidt_decomp_type<fp_type> SchmidtDecomp() {
@@ -362,14 +378,15 @@ struct GateCNot {
   static constexpr GateKind kind = kGateCNot;
   static constexpr char name[] = "cnot";
   static constexpr unsigned num_qubits = 2;
+  static constexpr bool symmetric = false;
 
   static GateQSim<fp_type> Create(unsigned time, unsigned q0, unsigned q1) {
     // Matrix is in this form because the simulator uses inverse qubit order.
     return CreateGate<GateQSim<fp_type>, GateCNot>(
-        time, q0, q1, {1, 0, 0, 0, 0, 0, 0, 0,
-                       0, 0, 0, 0, 0, 0, 1, 0,
-                       0, 0, 0, 0, 1, 0, 0, 0,
-                       0, 0, 1, 0, 0, 0, 0, 0});
+        time, {q0, q1}, {1, 0, 0, 0, 0, 0, 0, 0,
+                         0, 0, 0, 0, 0, 0, 1, 0,
+                         0, 0, 0, 0, 1, 0, 0, 0,
+                         0, 0, 1, 0, 0, 0, 0, 0});
   }
 
   static schmidt_decomp_type<fp_type> SchmidtDecomp() {
@@ -388,15 +405,16 @@ struct GateSwap {
   static constexpr GateKind kind = kGateSwap;
   static constexpr char name[] = "sw";
   static constexpr unsigned num_qubits = 2;
+  static constexpr bool symmetric = true;
 
   static constexpr fp_type is2 = static_cast<fp_type>(is2_double);
 
   static GateQSim<fp_type> Create(unsigned time, unsigned q0, unsigned q1) {
     return CreateGate<GateQSim<fp_type>, GateSwap>(
-        time, q0, q1, {1, 0, 0, 0, 0, 0, 0, 0,
-                       0, 0, 0, 0, 1, 0, 0, 0,
-                       0, 0, 1, 0, 0, 0, 0, 0,
-                       0, 0, 0, 0, 0, 0, 1, 0});
+        time, {q0, q1}, {1, 0, 0, 0, 0, 0, 0, 0,
+                         0, 0, 0, 0, 1, 0, 0, 0,
+                         0, 0, 1, 0, 0, 0, 0, 0,
+                         0, 0, 0, 0, 0, 0, 1, 0});
   }
 
   static schmidt_decomp_type<fp_type> SchmidtDecomp() {
@@ -417,16 +435,17 @@ struct GateIS {
   static constexpr GateKind kind = kGateIS;
   static constexpr char name[] = "is";
   static constexpr unsigned num_qubits = 2;
+  static constexpr bool symmetric = true;
 
   static constexpr fp_type h = static_cast<fp_type>(h_double);
   static constexpr fp_type is2 = static_cast<fp_type>(is2_double);
 
   static GateQSim<fp_type> Create(unsigned time, unsigned q0, unsigned q1) {
     return CreateGate<GateQSim<fp_type>, GateIS>(
-        time, q0, q1, {1, 0, 0, 0, 0, 0, 0, 0,
-                       0, 0, 0, 0, 0, 1, 0, 0,
-                       0, 0, 0, 1, 0, 0, 0, 0,
-                       0, 0, 0, 0, 0, 0, 1, 0});
+        time, {q0, q1}, {1, 0, 0, 0, 0, 0, 0, 0,
+                         0, 0, 0, 0, 0, 1, 0, 0,
+                         0, 0, 0, 1, 0, 0, 0, 0,
+                         0, 0, 0, 0, 0, 0, 1, 0});
   }
 
   static schmidt_decomp_type<fp_type> SchmidtDecomp() {
@@ -449,6 +468,7 @@ struct GateFS {
   static constexpr GateKind kind = kGateFS;
   static constexpr char name[] = "fs";
   static constexpr unsigned num_qubits = 2;
+  static constexpr bool symmetric = true;
 
   static constexpr fp_type is2 = static_cast<fp_type>(is2_double);
 
@@ -464,10 +484,10 @@ struct GateFS {
     fp_type sp = std::sin(phi);
 
     return CreateGate<GateQSim<fp_type>, GateFS>(
-        time, q0, q1, {1, 0, 0, 0, 0, 0, 0, 0,
-                       0, 0, ct, 0, 0, -st, 0, 0,
-                       0, 0, 0, -st, ct, 0, 0, 0,
-                       0, 0, 0, 0, 0, 0, cp, -sp}, {theta, phi});
+        time, {q0, q1}, {1, 0, 0, 0, 0, 0, 0, 0,
+                         0, 0, ct, 0, 0, -st, 0, 0,
+                         0, 0, 0, -st, ct, 0, 0, 0,
+                         0, 0, 0, 0, 0, 0, cp, -sp}, {theta, phi});
   }
 
   static schmidt_decomp_type<fp_type> SchmidtDecomp(
@@ -521,6 +541,7 @@ struct GateCP {
   static constexpr GateKind kind = kGateCP;
   static constexpr char name[] = "cp";
   static constexpr unsigned num_qubits = 2;
+  static constexpr bool symmetric = true;
 
   static GateQSim<fp_type> Create(
       unsigned time, unsigned q0, unsigned q1, fp_type phi) {
@@ -528,10 +549,10 @@ struct GateCP {
     fp_type sp = std::sin(phi);
 
     return CreateGate<GateQSim<fp_type>, GateCP>(
-        time, q0, q1, {1, 0, 0, 0, 0, 0, 0, 0,
-                       0, 0, 1, 0, 0, 0, 0, 0,
-                       0, 0, 0, 0, 1, 0, 0, 0,
-                       0, 0, 0, 0, 0, 0, cp, -sp}, {phi});
+        time, {q0, q1}, {1, 0, 0, 0, 0, 0, 0, 0,
+                         0, 0, 1, 0, 0, 0, 0, 0,
+                         0, 0, 0, 0, 1, 0, 0, 0,
+                         0, 0, 0, 0, 0, 0, cp, -sp}, {phi});
   }
 
   static schmidt_decomp_type<fp_type> SchmidtDecomp(fp_type phi) {

@@ -16,12 +16,99 @@
 #define GATE_H_
 
 #include <algorithm>
+#include <cstdint>
 #include <utility>
 #include <vector>
 
 #include "matrix.h"
 
 namespace qsim {
+
+namespace detail {
+
+template <typename Gate, typename GateDef>
+inline void SortQubits(Gate& gate) {
+  for (std::size_t i = 1; i < gate.qubits.size(); ++i) {
+    if (gate.qubits[i - 1] > gate.qubits[i]) {
+      if (!GateDef::symmetric) {
+        auto perm = NormalToGateOrderPermutation(gate.qubits);
+        MatrixShuffle(perm, gate.qubits.size(), gate.matrix);
+      }
+
+      gate.swapped = true;
+      std::sort(gate.qubits.begin(), gate.qubits.end());
+      break;
+    }
+  }
+}
+
+}  // namespace detail
+
+template <typename Qubits = std::vector<unsigned>, typename Gate>
+inline void MakeControlledGate(Qubits&& controlled_by, Gate& gate) {
+  gate.controlled_by = std::forward<Qubits>(controlled_by);
+  gate.cmask = (uint64_t{1} << gate.controlled_by.size()) - 1;
+
+  std::sort(gate.controlled_by.begin(), gate.controlled_by.end());
+}
+
+template <typename Qubits = std::vector<unsigned>, typename Gate>
+inline void MakeControlledGate(Qubits&& controlled_by,
+                               const std::vector<unsigned>& control_values,
+                               Gate& gate) {
+  // Assume controlled_by.size() == control_values.size().
+
+  bool sorted = true;
+
+  for (std::size_t i = 1; i < controlled_by.size(); ++i) {
+    if (controlled_by[i - 1] > controlled_by[i]) {
+      sorted = false;
+      break;
+    }
+  }
+
+  if (sorted) {
+    gate.controlled_by = std::forward<Qubits>(controlled_by);
+    gate.cmask = 0;
+
+    for (std::size_t i = 0; i < control_values.size(); ++i) {
+      gate.cmask |= (control_values[i] & 1) << i;
+    }
+  } else {
+    struct ControlPair {
+      unsigned q;
+      unsigned v;
+    };
+
+    std::vector<ControlPair> cpairs;
+    cpairs.reserve(controlled_by.size());
+
+    for (std::size_t i = 0; i < controlled_by.size(); ++i) {
+      cpairs.push_back({controlled_by[i], control_values[i]});
+    }
+
+    // Sort control qubits and control values.
+    std::sort(cpairs.begin(), cpairs.end(),
+              [](const ControlPair& l, const ControlPair& r) -> bool {
+                return l.q < r.q;
+              });
+
+    gate.cmask = 0;
+    gate.controlled_by.reserve(controlled_by.size());
+
+    for (std::size_t i = 0; i < cpairs.size(); ++i) {
+      gate.cmask |= (cpairs[i].v & 1) << i;
+      gate.controlled_by.push_back(cpairs[i].q);
+    }
+  }
+}
+
+namespace gate {
+
+constexpr int kDecomp = 100001;       // gate from Schmidt decomposition
+constexpr int kMeasurement = 100002;  // measurement gate
+
+}  // namespace gate
 
 enum GateAnyKind {
   kGateAny = -1,
@@ -37,56 +124,61 @@ struct Gate {
 
   GateKind kind;
   unsigned time;
-  unsigned num_qubits;
   std::vector<unsigned> qubits;
+  std::vector<unsigned> controlled_by;
+  uint64_t cmask;
   std::vector<fp_type> params;
-  std::vector<fp_type> matrix;
-  bool unfusible;      // If true, the gate is fused as a master.
-  bool inverse;        // If true, the qubit order is inversed (q0 > q1).
+  Matrix<fp_type> matrix;
+  bool unfusible;      // If true, the gate is fused as a parent.
+  bool swapped;        // If true, the gate qubits are swapped to make qubits
+                       // ordered in ascending order. This does not apply to
+                       // control qubits of explicitly-controlled gates.
+
+  template <typename Qubits = std::vector<unsigned>>
+  Gate&& ControlledBy(Qubits&& controlled_by) {
+    MakeControlledGate(std::forward<Qubits>(controlled_by), *this);
+    return std::move(*this);
+  }
+
+  template <typename Qubits = std::vector<unsigned>>
+  Gate&& ControlledBy(Qubits&& controlled_by,
+                      const std::vector<unsigned>& control_values) {
+    MakeControlledGate(
+        std::forward<Qubits>(controlled_by), control_values, *this);
+    return std::move(*this);
+  }
 };
 
-template <typename Gate, typename GateDef>
-inline Gate CreateGate(unsigned time, unsigned q0,
-                       std::vector<typename Gate::fp_type>&& matrix,
+template <typename Gate, typename GateDef,
+          typename Qubits = std::vector<unsigned>,
+          typename M = Matrix<typename Gate::fp_type>>
+inline Gate CreateGate(unsigned time, Qubits&& qubits, M&& matrix = {},
                        std::vector<typename Gate::fp_type>&& params = {}) {
-  return Gate{GateDef::kind, time, GateDef::num_qubits, {q0},
-              std::move(params), std::move(matrix), false, false};
-}
+  Gate gate = {GateDef::kind, time, std::forward<Qubits>(qubits), {}, 0,
+               std::move(params), std::forward<M>(matrix), false, false};
 
-template <typename Gate, typename GateDef>
-inline Gate CreateGate(unsigned time, unsigned q0, unsigned q1,
-                       std::vector<typename Gate::fp_type>&& matrix,
-                       std::vector<typename Gate::fp_type>&& params = {}) {
-  Gate gate = {GateDef::kind, time, GateDef::num_qubits, {q0, q1},
-               std::move(params), std::move(matrix), false, false};
-  if (q0 > q1) {
-    gate.inverse = true;
-    std::swap(gate.qubits[0], gate.qubits[1]);
-    Matrix4Permute(gate.matrix);
+  if (GateDef::kind != gate::kMeasurement) {
+    switch (qubits.size()) {
+    case 1:
+      break;
+    case 2:
+      if (gate.qubits[0] > gate.qubits[1]) {
+        gate.swapped = true;
+        std::swap(gate.qubits[0], gate.qubits[1]);
+        if (!GateDef::symmetric) {
+          MatrixShuffle({1, 0}, 2, gate.matrix);
+        }
+      }
+      break;
+    default:
+      detail::SortQubits<Gate, GateDef>(gate);
+    }
   }
+
   return gate;
 }
 
-template <typename Gate, typename GateDef>
-inline Gate CreateGate(unsigned time, std::vector<unsigned>&& qubits,
-                       std::vector<typename Gate::fp_type>&& matrix = {},
-                       std::vector<typename Gate::fp_type>&& params = {}) {
-  return Gate{GateDef::kind, time, static_cast<unsigned>(qubits.size()),
-              std::move(qubits), std::move(params), std::move(matrix),
-              false, false};
-}
-
-template <typename fp_type>
-using schmidt_decomp_type = std::vector<std::vector<std::vector<fp_type>>>;
-
-template <typename fp_type, typename GateKind>
-schmidt_decomp_type<fp_type> GetSchmidtDecomp(
-    GateKind kind, const std::vector<fp_type>& params);
-
 namespace gate {
-
-constexpr int kDecomp = 100001;       // gate from Schmidt decomposition
-constexpr int kMeasurement = 100002;  // measurement gate
 
 /**
  * A gate that simulates measurement of one or more qubits, collapsing the
@@ -98,13 +190,22 @@ struct Measurement {
 
   static constexpr GateKind kind = GateKind::kMeasurement;
   static constexpr char name[] = "m";
+  static constexpr bool symmetric = false;
 
-  static Gate Create(unsigned time, std::vector<unsigned>&& qubits) {
-    return CreateGate<Gate, Measurement>(time, std::move(qubits));
+  template <typename Qubits>
+  static Gate Create(unsigned time, Qubits&& qubits) {
+    return CreateGate<Gate, Measurement>(time, std::forward<Qubits>(qubits));
   }
 };
 
 }  // namespace gate
+
+template <typename fp_type>
+using schmidt_decomp_type = std::vector<std::vector<std::vector<fp_type>>>;
+
+template <typename fp_type, typename GateKind>
+schmidt_decomp_type<fp_type> GetSchmidtDecomp(
+    GateKind kind, const std::vector<fp_type>& params);
 
 }  // namespace qsim
 
