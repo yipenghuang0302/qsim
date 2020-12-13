@@ -192,48 +192,6 @@ class QSimSimulator(SimulatesSamples, SimulatesAmplitudes, SimulatesFinalState):
     return results
 
 
-  def _run(
-    self,
-    circuit: circuits.Circuit,
-    param_resolver: study.ParamResolver,
-    repetitions: int) -> Dict[str, List[np.ndarray]]:
-    """See definition in `cirq.SimulatesSamples`."""
-    param_resolver = param_resolver or study.ParamResolver({})
-    resolved_circuit = protocols.resolve_parameters(circuit, param_resolver)
-
-    def measure_or_mixture(op):
-        return protocols.is_measurement(op) or protocols.has_mixture(op)
-    # if circuit.are_all_matches_terminal(measure_or_mixture):
-    return self._run_sweep_sample(resolved_circuit, repetitions)
-    raise ValueError('QSimCircuit cannot handle non-terminal measurements.')
-
-  def _run_sweep_sample(
-    self,
-    circuit: circuits.Circuit,
-    repetitions: int) -> Dict[str, List[np.ndarray]]:
-
-    trial_result = self.simulate_sweep(
-        program=circuit,
-        params=None,
-        qubit_order=ops.QubitOrder.DEFAULT,
-        initial_state=0
-    )[0]
-
-    step_result = sim.sparse_simulator.SparseSimulatorStep (
-        state_vector=trial_result._final_simulator_state.state_vector,
-        measurements=trial_result.measurements,
-        qubit_map=trial_result._final_simulator_state.qubit_map,
-        dtype=trial_result._final_simulator_state.state_vector.dtype
-    )
-
-    # We can ignore the mixtures since this is a run method which
-    # does not return the state.
-    measurement_ops = [op for _, op, _ in
-                       circuit.findall_operations_with_gate_type(
-                               ops.MeasurementGate)]
-    return step_result.sample_measurement_ops(measurement_ops,
-                                              repetitions)
-
   def compute_amplitudes_sweep(
       self,
       program: circuits.Circuit,

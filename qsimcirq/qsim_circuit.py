@@ -194,23 +194,12 @@ class QSimCircuit(cirq.Circuit):
       mat = cirq.protocols.unitary(op.gate, None)
       if mat is None:
           return NotImplemented
-      
+
       return cirq.ops.MatrixGate(mat).on(*op.qubits)
 
     qubit_to_index_dict = {q: i for i, q in enumerate(ordered_qubits)}
     time_offset = 0
     for moment in self:
-# <<<<<<< HEAD
-#       moment_length = 1
-#       for op in moment:
-#         if isinstance(op.gate, cirq.ops.MeasurementGate):
-#           continue
-#         qsim_ops = cirq.decompose(
-#           op, keep=lambda x: _cirq_gate_kind(x.gate) != None)
-#         moment_length = max(moment_length, len(qsim_ops))
-#
-#         for gi, qsim_op in enumerate(qsim_ops):
-# =======
       ops_by_gate = [
         cirq.decompose(op, fallback_decomposer=to_matrix, keep=has_qsim_kind)
         for op in moment
@@ -223,7 +212,6 @@ class QSimCircuit(cirq.Circuit):
           if gi >= len(gate_ops):
             continue
           qsim_op = gate_ops[gi]
-# >>>>>>> upstream/master
           gate_kind = _cirq_gate_kind(qsim_op.gate)
           time = time_offset + gi
           qubits = [qubit_to_index_dict[q] for q in qsim_op.qubits]
@@ -265,76 +253,4 @@ class QSimCircuit(cirq.Circuit):
             qsim.control_last_gate(control_qubits, control_values, qsim_circuit)
       time_offset += moment_length
 
-# <<<<<<< HEAD
-#         qub_str = ""
-#         for qub in op.qubits:
-#           qub_str += "{} ".format(qubit_to_index_dict[qub])
-#
-#         qsim_gate = ""
-#         qsim_params = ""
-#         if isinstance(op.gate, cirq.ops.HPowGate)\
-#                 and op.gate.exponent == 1.0:
-#           qsim_gate = "h"
-#         elif isinstance(op.gate, cirq.ops.ZPowGate) \
-#                 and op.gate.exponent == 0.25:
-#           qsim_gate = "t"
-#         elif isinstance(op.gate, cirq.ops.XPowGate) \
-#                 and op.gate.exponent == 1.0:
-#           qsim_gate = "x"
-#         elif isinstance(op.gate, cirq.ops.YPowGate) \
-#                 and op.gate.exponent == 1.0:
-#           qsim_gate = "y"
-#         elif isinstance(op.gate, cirq.ops.ZPowGate) \
-#                 and op.gate.exponent == 1.0:
-#           qsim_gate = "z"
-#         elif isinstance(op.gate, cirq.ops.XPowGate) \
-#                 and op.gate.exponent == 0.5:
-#           qsim_gate = "x_1_2"
-#         elif isinstance(op.gate, cirq.ops.YPowGate) \
-#                 and op.gate.exponent == 0.5:
-#           qsim_gate = "y_1_2"
-#         elif isinstance(op.gate, cirq.ops.XPowGate):
-#           qsim_gate = "rx"
-#           qsim_params = str(op.gate.exponent*np.pi)
-#         elif isinstance(op.gate, cirq.ops.YPowGate):
-#           qsim_gate = "ry"
-#           qsim_params = str(op.gate.exponent*np.pi)
-#         elif isinstance(op.gate, cirq.ops.ZPowGate):
-#           qsim_gate = "rz"
-#           qsim_params = str(op.gate.exponent*np.pi)
-#         elif isinstance(op.gate, cirq.ops.CZPowGate) \
-#                 and op.gate.exponent == 1.0:
-#           qsim_gate = "cz"
-#         elif isinstance(op.gate, cirq.ops.CNotPowGate) \
-#                 and op.gate.exponent == 1.0:
-#           qsim_gate = "cnot"
-#         elif isinstance(op.gate, cirq.ops.ISwapPowGate) \
-#                 and op.gate.exponent == 1.0:
-#           qsim_gate = "is"
-#         elif isinstance(op.gate, cirq.ops.CZPowGate):
-#           qsim_gate = "cp"
-#           qsim_params = str(op.gate.exponent*np.pi)
-#         elif isinstance(op.gate, cirq.ops.FSimGate):
-#           qsim_gate = "fs"
-#           qsim_params = "{} {}".format(op.gate.theta, op.gate.phi)
-#         elif isinstance(op.gate, cirq.ops.identity.IdentityGate) \
-#                 and op.gate.num_qubits() == 1:
-#           qsim_gate = "id1"
-#         elif isinstance(op.gate, cirq.ops.identity.IdentityGate) \
-#                 and op.gate.num_qubits() == 2:
-#           qsim_gate = "id2"
-#         elif isinstance(op.gate, cirq.ops.MeasurementGate):
-#           continue
-#         else:
-#           raise ValueError("{!r} No translation for ".format(op))
-#
-#         # The moment is missing
-#         qsim_gate = "{} {} {} {}".format(mi, qsim_gate, qub_str.strip(),
-#                                          qsim_params.strip())
-#         circuit_data.append(qsim_gate.strip())
-#
-#     circuit_data.insert(0, str(len(ordered_qubits)))
-#     return "\n".join(circuit_data)
-# =======
     return qsim_circuit
-# >>>>>>> upstream/master
