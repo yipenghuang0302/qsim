@@ -22,7 +22,6 @@ from cirq import (
   sim,
   study,
   value,
-  SimulatesSamples,
   SimulatesAmplitudes,
   SimulatesFinalState,
   SimulatesSamples,

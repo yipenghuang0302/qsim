@@ -194,7 +194,7 @@ class QSimCircuit(cirq.Circuit):
       mat = cirq.protocols.unitary(op.gate, None)
       if mat is None:
           return NotImplemented
-
+      
       return cirq.ops.MatrixGate(mat).on(*op.qubits)
 
     qubit_to_index_dict = {q: i for i, q in enumerate(ordered_qubits)}
