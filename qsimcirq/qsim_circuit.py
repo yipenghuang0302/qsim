@@ -165,9 +165,9 @@ class QSimCircuit(cirq.Circuit):
     # equality is tested, for the moment, for cirq.Circuit
     return super().__eq__(other)
 
-  def _resolve_parameters_(self, param_resolver: cirq.study.ParamResolver):
+  def _resolve_parameters_(self, param_resolver: cirq.study.ParamResolver, recursive: bool):
     return QSimCircuit(
-      super()._resolve_parameters_(param_resolver), device=self.device)
+      super()._resolve_parameters_(param_resolver,recursive), device=self.device)
 
   def translate_cirq_to_qsim(
       self,
@@ -194,7 +194,7 @@ class QSimCircuit(cirq.Circuit):
       mat = cirq.protocols.unitary(op.gate, None)
       if mat is None:
           return NotImplemented
-      
+
       return cirq.ops.MatrixGate(mat).on(*op.qubits)
 
     qubit_to_index_dict = {q: i for i, q in enumerate(ordered_qubits)}
