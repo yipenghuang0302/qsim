@@ -103,6 +103,72 @@ class MainTest(unittest.TestCase):
         result.state_vector(), cirq_result.state_vector())
 
 
+  def test_cirq_qsim_simulate_sweep(self):
+    # Pick qubits.
+    a, b = [
+        cirq.GridQubit(0, 0),
+        cirq.GridQubit(0, 1),
+    ]
+    x = sympy.Symbol('x')
+
+    # Create a circuit.
+    cirq_circuit = cirq.Circuit(
+        cirq.Moment([
+            cirq.X(a)**x,
+            cirq.H(b),       # Hadamard.
+        ]),
+        cirq.Moment([
+            cirq.CX(a, b),   # ControlX.
+        ]),
+    )
+
+    params = [{x: 0.25}, {x: 0.5}, {x: 0.75}]
+    qsimSim = qsimcirq.QSimSimulator()
+    qsim_result = qsimSim.simulate_sweep(cirq_circuit, params)
+    cirqSim = cirq.Simulator()
+    cirq_result = cirqSim.simulate_sweep(cirq_circuit, params)
+
+    for i in range(len(qsim_result)):
+      assert cirq.linalg.allclose_up_to_global_phase(
+        qsim_result[i].state_vector(), cirq_result[i].state_vector())
+
+    # initial_state supports bitstrings.
+    qsim_result = qsimSim.simulate_sweep(cirq_circuit, params,
+                                         initial_state=0b01)
+    cirq_result = cirqSim.simulate_sweep(cirq_circuit, params,
+                                         initial_state=0b01)
+    for i in range(len(qsim_result)):
+      assert cirq.linalg.allclose_up_to_global_phase(
+        qsim_result[i].state_vector(), cirq_result[i].state_vector())
+
+    # initial_state supports state vectors.
+    initial_state = np.asarray([0.5j, 0.5, -0.5j, -0.5], dtype=np.complex64)
+    qsim_result = qsimSim.simulate_sweep(
+      cirq_circuit, params, initial_state=initial_state)
+    cirq_result = cirqSim.simulate_sweep(
+      cirq_circuit, params, initial_state=initial_state)
+    for i in range(len(qsim_result)):
+      assert cirq.linalg.allclose_up_to_global_phase(
+        qsim_result[i].state_vector(), cirq_result[i].state_vector())
+
+  def test_input_vector_validation(self):
+    cirq_circuit = cirq.Circuit(
+      cirq.X(cirq.LineQubit(0)), cirq.X(cirq.LineQubit(1))
+    )
+    params = [{}]
+    qsimSim = qsimcirq.QSimSimulator()
+
+    with self.assertRaises(ValueError):
+      initial_state = np.asarray([0.25]*16, dtype=np.complex64)
+      qsim_result = qsimSim.simulate_sweep(
+        cirq_circuit, params, initial_state=initial_state)
+
+    with self.assertRaises(TypeError):
+      initial_state = np.asarray([0.5]*4)
+      qsim_result = qsimSim.simulate_sweep(
+        cirq_circuit, params, initial_state=initial_state)
+
+
   def test_cirq_qsim_run(self):
     # Pick qubits.
     a, b, c, d = [

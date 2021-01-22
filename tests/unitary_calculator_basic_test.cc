@@ -12,16 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "unitary_calculator_testfixture.h"
-
-#include "gtest/gtest.h"
+#include "../lib/unitary_calculator_basic.h"
 
 #include "../lib/formux.h"
 #include "../lib/unitaryspace_basic.h"
-#include "../lib/unitary_calculator_basic.h"
+#include "gtest/gtest.h"
+#include "unitary_calculator_testfixture.h"
 
 namespace qsim {
-
 namespace unitary {
 namespace {
 
@@ -29,15 +27,23 @@ TEST(UnitaryCalculatorTest, ApplyGate1) {
   TestApplyGate1<UnitaryCalculatorBasic<For, float>>();
 }
 
+TEST(UnitaryCalculatorTest, ApplyControlledGate1) {
+  TestApplyControlledGate1<UnitaryCalculatorBasic<For, float>>();
+}
+
 TEST(UnitaryCalculatorTest, ApplyGate2) {
   TestApplyGate2<UnitaryCalculatorBasic<For, float>>();
+}
+
+TEST(UnitaryCalculatorTest, ApplyControlledGate2) {
+  TestApplyControlledGate2<UnitaryCalculatorBasic<For, float>>();
 }
 
 TEST(UnitaryCalculatorTest, ApplyFusedGate) {
   TestApplyFusedGate<UnitaryCalculatorBasic<For, float>>();
 }
 
-}  // namspace
+}  // namespace
 }  // namespace unitary
 }  // namespace qsim
 

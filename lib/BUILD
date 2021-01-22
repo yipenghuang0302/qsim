@@ -24,6 +24,7 @@ cc_library(
         "io.h",
         "matrix.h",
         "parfor.h",
+        "qtrajectory.h",
         "run_qsim.h",
         "run_qsimh.h",
         "seqfor.h",
@@ -383,6 +384,14 @@ cc_library(
     ],
 )
 
+### Quantum trajectory simulator ###
+
+cc_library(
+    name = "qtrajectory",
+    hdrs = ["qtrajectory.h"],
+    deps = [":gate"],
+)
+
 ### UnitarySpace libraries ###
 
 cc_library(
@@ -405,7 +414,10 @@ cc_library(
 cc_library(
     name = "unitary_calculator_basic",
     hdrs = ["unitary_calculator_basic.h"],
-    deps = [":unitaryspace_basic"],
+    deps = [
+        ":bits",
+        ":unitaryspace_basic"
+    ],
 )
 
 ### Unitary mux header ###
