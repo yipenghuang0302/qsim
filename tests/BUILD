@@ -26,6 +26,26 @@ cc_test(
 )
 
 cc_test(
+    name = "channels_cirq_test",
+    srcs = ["channels_cirq_test.cc"],
+    deps = [
+        "@com_google_googletest//:gtest_main",
+        "//lib:channels_cirq",
+        "//lib:circuit",
+        "//lib:formux",
+        "//lib:fuser_mqubit",
+        "//lib:gates_cirq",
+        "//lib:io",
+        "//lib:qtrajectory",
+        "//lib:simulator",
+    ],
+    copts = select({
+        ":windows": windows_copts,
+        "//conditions:default": [],
+    }),
+)
+
+cc_test(
     name = "circuit_qsim_parser_test",
     srcs = ["circuit_qsim_parser_test.cc"],
     copts = select({
@@ -70,7 +90,6 @@ cc_test(
         "//lib:circuit_qsim_parser",
         "//lib:fuser_basic",
         "//lib:gates_qsim",
-        "//lib:io",
     ],
 )
 
@@ -87,7 +106,6 @@ cc_test(
         "//lib:fuser_mqubit",
         "//lib:gate",
         "//lib:gate_appl",
-        "//lib:io",
         "//lib:matrix",
         "//lib:simulator",
     ],
@@ -154,6 +172,8 @@ cc_test(
     srcs = ["qtrajectory_test.cc"],
     deps = [
         "@com_google_googletest//:gtest_main",
+        "//lib:channels_cirq",
+        "//lib:circuit_noisy",
         "//lib:formux",
         "//lib:fuser_mqubit",
         "//lib:gate_appl",
@@ -220,7 +240,8 @@ cc_test(
     deps = [
         ":simulator_testfixture",
         "@com_google_googletest//:gtest_main",
-        "//lib:formux",
+        "//lib:parfor",
+        "//lib:seqfor",
         "//lib:simulator_avx",
     ],
     copts = select({
@@ -235,7 +256,8 @@ cc_test(
     deps = [
         ":simulator_testfixture",
         "@com_google_googletest//:gtest_main",
-        "//lib:formux",
+        "//lib:parfor",
+        "//lib:seqfor",
         "//lib:simulator_basic",
     ],
     copts = select({
@@ -250,7 +272,8 @@ cc_test(
     deps = [
         ":simulator_testfixture",
         "@com_google_googletest//:gtest_main",
-        "//lib:formux",
+        "//lib:parfor",
+        "//lib:seqfor",
         "//lib:simulator_sse",
     ],
     copts = select({
@@ -283,7 +306,8 @@ cc_test(
     deps = [
         ":statespace_testfixture",
         "@com_google_googletest//:gtest_main",
-        "//lib:formux",
+        "//lib:parfor",
+        "//lib:seqfor",
         "//lib:simulator_avx",
         "//lib:statespace_avx",
     ],
@@ -299,7 +323,8 @@ cc_test(
     deps = [
         ":statespace_testfixture",
         "@com_google_googletest//:gtest_main",
-        "//lib:formux",
+        "//lib:parfor",
+        "//lib:seqfor",
         "//lib:simulator_basic",
         "//lib:statespace_basic",
     ],
@@ -315,7 +340,8 @@ cc_test(
     deps = [
         ":statespace_testfixture",
         "@com_google_googletest//:gtest_main",
-        "//lib:formux",
+        "//lib:parfor",
+        "//lib:seqfor",
         "//lib:simulator_sse",
         "//lib:statespace_sse",
     ],
@@ -339,6 +365,21 @@ cc_library(
 )
 
 cc_test(
+    name = "unitaryspace_avx_test",
+    srcs = ["unitaryspace_avx_test.cc"],
+    copts = select({
+        ":windows": windows_copts,
+        "//conditions:default": avx_copts,
+    }),
+    deps = [
+        ":unitaryspace_testfixture",
+        "@com_google_googletest//:gtest_main",
+        "//lib:formux",
+        "//lib:unitaryspace_avx"
+    ],
+)
+
+cc_test(
     name = "unitaryspace_basic_test",
     srcs = ["unitaryspace_basic_test.cc"],
     copts = select({
@@ -353,6 +394,21 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "unitaryspace_sse_test",
+    srcs = ["unitaryspace_sse_test.cc"],
+    copts = select({
+        ":windows": windows_copts,
+        "//conditions:default": sse_copts,
+    }),
+    deps = [
+        ":unitaryspace_testfixture",
+        "@com_google_googletest//:gtest_main",
+        "//lib:formux",
+        "//lib:unitaryspace_sse"
+    ],
+)
+
 cc_library(
     name = "unitary_calculator_testfixture",
     hdrs = ["unitary_calculator_testfixture.h"],
@@ -362,11 +418,28 @@ cc_library(
     }),
     deps = [
         "@com_google_googletest//:gtest_main",
+        "//lib:bits",
         "//lib:fuser",
         "//lib:gate_appl",
         "//lib:gates_cirq",
     ],
     testonly = 1,
+)
+
+cc_test(
+    name = "unitary_calculator_avx_test",
+    srcs = ["unitary_calculator_avx_test.cc"],
+    copts = select({
+        ":windows": windows_copts,
+        "//conditions:default": avx_copts,
+    }),
+    deps = [
+        ":unitary_calculator_testfixture",
+        "@com_google_googletest//:gtest_main",
+        "//lib:formux",
+        "//lib:unitaryspace_avx",
+        "//lib:unitary_calculator_avx",
+    ],
 )
 
 cc_test(
@@ -382,5 +455,35 @@ cc_test(
         "//lib:formux",
         "//lib:unitaryspace_basic",
         "//lib:unitary_calculator_basic",
+    ],
+)
+
+cc_test(
+    name = "unitary_calculator_sse_test",
+    srcs = ["unitary_calculator_sse_test.cc"],
+    copts = select({
+        ":windows": windows_copts,
+        "//conditions:default": sse_copts,
+    }),
+    deps = [
+        ":unitary_calculator_testfixture",
+        "@com_google_googletest//:gtest_main",
+        "//lib:formux",
+        "//lib:unitaryspace_sse",
+        "//lib:unitary_calculator_sse",
+    ],
+)
+
+cc_test(
+    name = "vectorspace_test",
+    srcs = ["vectorspace_test.cc"],
+    copts = select({
+        ":windows": windows_copts,
+        "//conditions:default": [],
+    }),
+    deps = [
+        "@com_google_googletest//:gtest_main",
+        "//lib:formux",
+        "//lib:vectorspace",
     ],
 )

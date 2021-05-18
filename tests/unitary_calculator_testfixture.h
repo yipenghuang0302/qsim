@@ -15,8 +15,12 @@
 #ifndef UNITARY_CALCULTOR_TESTFIXTURE_H_
 #define UNITARY_CALCULTOR_TESTFIXTURE_H_
 
+#include <algorithm>
 #include <complex>
+#include <cmath>
+#include <vector>
 
+#include "../lib/bits.h"
 #include "../lib/fuser.h"
 #include "../lib/gate_appl.h"
 #include "../lib/gates_cirq.h"
@@ -33,8 +37,19 @@ void FillMatrix(UnitarySpace& us, Unitary& u, int n) {
   // Intentionally create non-unitary matrix with ascending elements.
   for (int i = 0; i < (1 << n); i++) {
     for (int j = 0; j < (1 << n); j++) {
-      auto val = 2 * i * (1 << n) + 2 * j;
+      auto val = 2 * j * (1 << n) + 2 * i;
       us.SetEntry(u, i, j, val, val + 1);
+    }
+  }
+}
+
+template <typename UnitarySpace, typename Unitary>
+void FillMatrix2(UnitarySpace& us, Unitary& u, uint64_t size, uint64_t delta) {
+  // Intentionally create non-unitary matrix with ascending elements.
+  for (uint64_t i = 0; i < size; ++i) {
+    for (uint64_t j = 0; j < size; ++j) {
+      auto val = 2 * i * delta + 2 * j;
+      us.SetEntry(u, i, j, val, (val + 1));
     }
   }
 }
@@ -43,12 +58,12 @@ template <typename UnitarySpace, typename Unitary>
 void EUnitaryEQ(UnitarySpace& us, Unitary& u, int n, float* expected) {
   for (int i = 0; i < (1 << n); i++) {
     for (int j = 0; j < (1 << n); j++) {
-      int ind = 2 * i * (1 << n) + 2 * j;
+      int ind = 2 * j * (1 << n) + 2 * i;
       auto out = us.GetEntry(u, i, j);
       std::complex<float> e_val =
           std::complex<float>(expected[ind], expected[ind + 1]);
       EXPECT_EQ(out, e_val) << "Mismatch in unitary at: " << i << "," << j
-                            << "Expected: " << e_val << " Got: " << out;
+                            << " Expected: " << e_val << " Got: " << out;
     }
   }
 }
@@ -57,18 +72,19 @@ void EUnitaryEQ(UnitarySpace& us, Unitary& u, int n, float* expected) {
 
 template <typename UC>
 void TestApplyGate1() {
-  const int n_qubits = 3;
-  UC uc(n_qubits, 1);
+  const int num_qubits = 3;
+
   using UnitarySpace = typename UC::UnitarySpace;
   using Unitary = typename UC::Unitary;
 
-  UnitarySpace us(n_qubits, 1);
-  Unitary u = us.CreateUnitary();
+  UC uc(1);
+  UnitarySpace us(1);
+  Unitary u = us.CreateUnitary(num_qubits);
 
   float ref_gate[] = {1, 2, 3, 4, 5, 6, 7, 8};
 
   // Test applying on qubit 0.
-  FillMatrix(us, u, n_qubits);
+  FillMatrix(us, u, num_qubits);
   // clang-format off
   float expected_mat_0[] = {
     -22,116,-26,136,-30,156,-34,176,-38,196,-42,216,-46,236,-50,256,
@@ -82,10 +98,10 @@ void TestApplyGate1() {
   };
   // clang-format on
   uc.ApplyGate({0}, ref_gate, u);
-  EUnitaryEQ(us, u, n_qubits, expected_mat_0);
+  EUnitaryEQ(us, u, num_qubits, expected_mat_0);
 
   // Test applying on qubit 1.
-  FillMatrix(us, u, n_qubits);
+  FillMatrix(us, u, num_qubits);
   // clang-format off
   float expected_mat_1[] = {
     -38,228,-42,248,-46,268,-50,288,-54,308,-58,328,-62,348,-66,368,
@@ -99,10 +115,10 @@ void TestApplyGate1() {
   };
   // clang-format on
   uc.ApplyGate({1}, ref_gate, u);
-  EUnitaryEQ(us, u, n_qubits, expected_mat_1);
+  EUnitaryEQ(us, u, num_qubits, expected_mat_1);
 
   // Test applying on qubit 2.
-  FillMatrix(us, u, n_qubits);
+  FillMatrix(us, u, num_qubits);
   // clang-format off
   float expected_mat_2[] = {
     -70,452,-74,472,-78,492,-82,512,-86,532,-90,552,-94,572,-98,592,
@@ -116,23 +132,24 @@ void TestApplyGate1() {
   };
   // clang-format on
   uc.ApplyGate({2}, ref_gate, u);
-  EUnitaryEQ(us, u, n_qubits, expected_mat_2);
+  EUnitaryEQ(us, u, num_qubits, expected_mat_2);
 }
 
 template <typename UC>
 void TestApplyControlledGate1() {
-  const int n_qubits = 3;
-  UC uc(n_qubits, 1);
+  const int num_qubits = 3;
+
   using UnitarySpace = typename UC::UnitarySpace;
   using Unitary = typename UC::Unitary;
 
-  UnitarySpace us(n_qubits, 1);
-  Unitary u = us.CreateUnitary();
+  UC uc(1);
+  UnitarySpace us(1);
+  Unitary u = us.CreateUnitary(num_qubits);
 
   float ref_gate[] = {1, 2, 3, 4, 5, 6, 7, 8};
 
   // Test applying on qubit 0 controlling 1.
-  FillMatrix(us, u, n_qubits);
+  FillMatrix(us, u, num_qubits);
   // clang-format off
   float expected_mat_0[] = {
     0.0,1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,
@@ -146,10 +163,10 @@ void TestApplyControlledGate1() {
   };
   // clang-format on
   uc.ApplyControlledGate({0}, {1}, 1, ref_gate, u);
-  EUnitaryEQ(us, u, n_qubits, expected_mat_0);
+  EUnitaryEQ(us, u, num_qubits, expected_mat_0);
 
   // Test applying on qubit 0 controlling 2.
-  FillMatrix(us, u, n_qubits);
+  FillMatrix(us, u, num_qubits);
   // clang-format off
   float expected_mat_1[] = {
     0.0,1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,
@@ -163,10 +180,10 @@ void TestApplyControlledGate1() {
   };
   // clang-format on
   uc.ApplyControlledGate({0}, {2}, 1, ref_gate, u);
-  EUnitaryEQ(us, u, n_qubits, expected_mat_1);
+  EUnitaryEQ(us, u, num_qubits, expected_mat_1);
 
   // Test applying on qubit 0 controlling on 1 and 2.
-  FillMatrix(us, u, n_qubits);
+  FillMatrix(us, u, num_qubits);
   // clang-format off
   float expected_mat_2[] = {
     0.0,1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,
@@ -180,10 +197,10 @@ void TestApplyControlledGate1() {
   };
   // clang-format on
   uc.ApplyControlledGate({0}, {1, 2}, 3, ref_gate, u);
-  EUnitaryEQ(us, u, n_qubits, expected_mat_2);
+  EUnitaryEQ(us, u, num_qubits, expected_mat_2);
 
   // Test applying on qubit 1 controlling on 0.
-  FillMatrix(us, u, n_qubits);
+  FillMatrix(us, u, num_qubits);
   // clang-format off
   float expected_mat_3[] = {
     0.0,1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,
@@ -197,10 +214,10 @@ void TestApplyControlledGate1() {
   };
   // clang-format on
   uc.ApplyControlledGate({1}, {0}, 1, ref_gate, u);
-  EUnitaryEQ(us, u, n_qubits, expected_mat_3);
+  EUnitaryEQ(us, u, num_qubits, expected_mat_3);
 
   // Test applying on qubit 1 controlling on 0 and 2.
-  FillMatrix(us, u, n_qubits);
+  FillMatrix(us, u, num_qubits);
   // clang-format off
   float expected_mat_4[] = {
     0.0,1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,
@@ -214,10 +231,10 @@ void TestApplyControlledGate1() {
   };
   // clang-format on
   uc.ApplyControlledGate({1}, {0, 2}, 3, ref_gate, u);
-  EUnitaryEQ(us, u, n_qubits, expected_mat_4);
+  EUnitaryEQ(us, u, num_qubits, expected_mat_4);
 
   // Test applying on qubit 2 controlling on 1.
-  FillMatrix(us, u, n_qubits);
+  FillMatrix(us, u, num_qubits);
   // clang-format off
   float expected_mat_5[] = {
     0.0,1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,
@@ -231,10 +248,10 @@ void TestApplyControlledGate1() {
   };
   // clang-format on
   uc.ApplyControlledGate({2}, {1}, 1, ref_gate, u);
-  EUnitaryEQ(us, u, n_qubits, expected_mat_5);
+  EUnitaryEQ(us, u, num_qubits, expected_mat_5);
 
   // Test applying on qubit 2 controlling on 0 and 1.
-  FillMatrix(us, u, n_qubits);
+  FillMatrix(us, u, num_qubits);
   // clang-format off
   float expected_mat_6[] = {
     0.0,1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,
@@ -248,18 +265,19 @@ void TestApplyControlledGate1() {
   };
   // clang-format on
   uc.ApplyControlledGate({2}, {0, 1}, 3, ref_gate, u);
-  EUnitaryEQ(us, u, n_qubits, expected_mat_6);
+  EUnitaryEQ(us, u, num_qubits, expected_mat_6);
 }
 
 template <typename UC>
 void TestApplyGate2() {
-  const int n_qubits = 3;
-  UC uc(n_qubits, 1);
+  const int num_qubits = 3;
+
   using UnitarySpace = typename UC::UnitarySpace;
   using Unitary = typename UC::Unitary;
 
-  UnitarySpace us(n_qubits, 1);
-  Unitary u = us.CreateUnitary();
+  UC uc(1);
+  UnitarySpace us(1);
+  Unitary u = us.CreateUnitary(num_qubits);
 
   // clang-format off
   float ref_gate[] = {1,2,3,4,5,6,7,8,
@@ -269,7 +287,7 @@ void TestApplyGate2() {
   // clang-format on
 
   // Test applying on qubit 0, 1
-  FillMatrix(us, u, n_qubits);
+  FillMatrix(us, u, num_qubits);
   // clang-format off
   float expected_mat_01[] = {
     -116,1200,-124,1272,-132,1344,-140,1416,-148,1488,-156,1560,-164,1632,-172,1704,
@@ -283,10 +301,10 @@ void TestApplyGate2() {
   };
   // clang-format on
   uc.ApplyGate({0, 1}, ref_gate, u);
-  EUnitaryEQ(us, u, n_qubits, expected_mat_01);
+  EUnitaryEQ(us, u, num_qubits, expected_mat_01);
 
   // Test applying on qubit 1, 2
-  FillMatrix(us, u, n_qubits);
+  FillMatrix(us, u, num_qubits);
   // clang-format off
   float expected_mat_12[] = {
     -212,2384,-220,2456,-228,2528,-236,2600,-244,2672,-252,2744,-260,2816,-268,2888,
@@ -300,10 +318,10 @@ void TestApplyGate2() {
   };
   // clang-format on
   uc.ApplyGate({1, 2}, ref_gate, u);
-  EUnitaryEQ(us, u, n_qubits, expected_mat_12);
+  EUnitaryEQ(us, u, num_qubits, expected_mat_12);
 
   // Test applying on qubit 0, 2
-  FillMatrix(us, u, n_qubits);
+  FillMatrix(us, u, num_qubits);
   // clang-format off
   float expected_mat_02[] = {
     -180,2032,-188,2104,-196,2176,-204,2248,-212,2320,-220,2392,-228,2464,-236,2536,
@@ -317,18 +335,19 @@ void TestApplyGate2() {
   };
   // clang-format on
   uc.ApplyGate({0, 2}, ref_gate, u);
-  EUnitaryEQ(us, u, n_qubits, expected_mat_02);
+  EUnitaryEQ(us, u, num_qubits, expected_mat_02);
 }
 
 template <typename UC>
 void TestApplyControlledGate2() {
-  const int n_qubits = 3;
-  UC uc(n_qubits, 1);
+  const int num_qubits = 3;
+
   using UnitarySpace = typename UC::UnitarySpace;
   using Unitary = typename UC::Unitary;
 
-  UnitarySpace us(n_qubits, 1);
-  Unitary u = us.CreateUnitary();
+  UC uc(1);
+  UnitarySpace us(1);
+  Unitary u = us.CreateUnitary(num_qubits);
 
   // clang-format off
   float ref_gate[] = {1,2,3,4,5,6,7,8,
@@ -338,7 +357,7 @@ void TestApplyControlledGate2() {
   // clang-format on
 
   // Test applying on qubit 0, 1
-  FillMatrix(us, u, n_qubits);
+  FillMatrix(us, u, num_qubits);
   // clang-format off
   float expected_mat_01[] = {
     0.0,1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,
@@ -352,10 +371,10 @@ void TestApplyControlledGate2() {
   };
   // clang-format on
   uc.ApplyControlledGate({0, 1}, {2}, 1, ref_gate, u);
-  EUnitaryEQ(us, u, n_qubits, expected_mat_01);
+  EUnitaryEQ(us, u, num_qubits, expected_mat_01);
 
   // Test applying on qubit 1, 2
-  FillMatrix(us, u, n_qubits);
+  FillMatrix(us, u, num_qubits);
   // clang-format off
   float expected_mat_12[] = {
     0.0,1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,
@@ -369,10 +388,10 @@ void TestApplyControlledGate2() {
   };
   // clang-format on
   uc.ApplyControlledGate({1, 2}, {0}, 1, ref_gate, u);
-  EUnitaryEQ(us, u, n_qubits, expected_mat_12);
+  EUnitaryEQ(us, u, num_qubits, expected_mat_12);
 
   // Test applying on qubit 0, 2
-  FillMatrix(us, u, n_qubits);
+  FillMatrix(us, u, num_qubits);
   // clang-format off
   float expected_mat_02[] = {
     0.0,1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,
@@ -386,7 +405,7 @@ void TestApplyControlledGate2() {
   };
   // clang-format on
   uc.ApplyControlledGate({0, 2}, {1}, 1, ref_gate, u);
-  EUnitaryEQ(us, u, n_qubits, expected_mat_02);
+  EUnitaryEQ(us, u, num_qubits, expected_mat_02);
 }
 
 template <typename UnitaryCalculator>
@@ -398,10 +417,10 @@ void TestApplyFusedGate() {
 
   unsigned num_qubits = 1;
 
-  UnitaryCalculator uc(num_qubits, 1);
-  UnitarySpace us(num_qubits, 1);
+  UnitaryCalculator uc(1);
+  UnitarySpace us(1);
 
-  Unitary u = us.CreateUnitary();
+  Unitary u = us.CreateUnitary(num_qubits);
   us.SetIdentity(u);
 
   std::vector<Gate> gates = {Cirq::H<fp_type>::Create(0, 0),
@@ -422,6 +441,276 @@ void TestApplyFusedGate() {
       }
 
       EXPECT_NEAR(std::imag(a), 0, 1e-6);
+    }
+  }
+}
+
+template <typename UnitaryCalculator>
+void TestApplyGates(bool test_double) {
+  using UnitarySpace = typename UnitaryCalculator::UnitarySpace;
+  using fp_type = typename UnitaryCalculator::fp_type;
+
+  unsigned max_minq = std::log2(UnitaryCalculator::SIMDRegisterSize());
+  unsigned max_gate_qubits = 6;
+  unsigned num_qubits = max_gate_qubits + max_minq;
+
+  UnitarySpace unitary_space(1);
+  UnitaryCalculator simulator(1);
+
+  auto unitary = unitary_space.CreateUnitary(num_qubits);
+
+  std::vector<fp_type> matrix;
+  matrix.reserve(1 << (2 * max_gate_qubits + 1));
+
+  std::vector<unsigned> qubits;
+  qubits.reserve(max_gate_qubits);
+
+  uint64_t size = 1 << num_qubits;
+
+  // Test 1-, 2-, ..., max_gate_qubits- qubit gates.
+  for (unsigned q = 1; q <= max_gate_qubits; ++q) {
+    uint64_t size1 = 1 << q;
+    uint64_t size2 = size1 * size1;
+
+    matrix.resize(0);
+
+    for (unsigned i = 0; i < 2 * size2; ++i) {
+      matrix.push_back(i + 1);
+    }
+
+    // k is the first gate qubit.
+    for (unsigned k = 0; k <= max_minq; ++k) {
+      qubits.resize(0);
+
+      // Gate qbuits are consecuitive from k to k + q - 1.
+      for (unsigned i = 0; i < q; ++i) {
+        qubits.push_back(i + k);
+      }
+
+      uint64_t delta = 42;  // Some random value.
+      uint64_t mask = ((size - 1) ^ (((1 << q) - 1) << k));
+
+      FillMatrix2(unitary_space, unitary, size, delta);
+      simulator.ApplyGate(qubits, matrix.data(), unitary);
+
+      for (uint64_t i = 0; i < size; ++i) {
+        uint64_t a0 = 2 * i * delta;
+
+        for (uint64_t j = 0; j < size; ++j) {
+          uint64_t s = j & mask;
+          uint64_t l = (j ^ s) >> k;
+
+          // Expected results are calculated analytically.
+          fp_type expected_real =
+              -fp_type(2 * size2 * l + size1 * (2 * s + a0 + 2)
+                       + (1 + (1 << k)) * (size2 - size1));
+          fp_type expected_imag = -expected_real - size1
+              + 2 * (size1 * (1 << k) * (size1 - 1)
+                           * (1 + 2 * size1 * (2 + 3 * l))
+                     + 3 * size2 * (1 + 2 * l) * (a0 + 2 * s)) / 3;
+
+          auto a = unitary_space.GetEntry(unitary, i, j);
+
+          if (test_double) {
+            EXPECT_NEAR(std::real(a), expected_real, 1e-6);
+            EXPECT_NEAR(std::imag(a), expected_imag, 1e-6);
+          } else {
+            // float does not have enough precision to test as above.
+            EXPECT_NEAR(1, std::real(a) / expected_real, 5e-4);
+            EXPECT_NEAR(1, std::imag(a) / expected_imag, 5e-4);
+          }
+        }
+      }
+    }
+  }
+}
+
+template <typename UnitaryCalculator>
+void TestApplyControlledGates(bool test_double) {
+  using UnitarySpace = typename UnitaryCalculator::UnitarySpace;
+  using fp_type = typename UnitaryCalculator::fp_type;
+
+  unsigned max_minq = std::log2(UnitaryCalculator::SIMDRegisterSize());
+  unsigned max_gate_qubits = 4;
+  unsigned max_controlled_qubits = 2;
+  unsigned num_qubits = max_gate_qubits + max_controlled_qubits + max_minq;
+
+  UnitarySpace unitary_space(1);
+  UnitaryCalculator simulator(1);
+
+  auto unitary = unitary_space.CreateUnitary(num_qubits);
+
+  std::vector<fp_type> matrix;
+  matrix.reserve(1 << (2 * max_gate_qubits + 1));
+
+  struct ControlData {
+    std::vector<unsigned> qubits;
+    uint64_t cval;                 // Control values.
+    uint64_t emask;                // Mask to expand control values.
+    unsigned minq;                 // Minimal q for the target gate.
+  };
+
+  std::vector<ControlData> control = {
+    {{0}, 1, 1, 1},
+    {{num_qubits - 1}, 0, (uint64_t{1} << (num_qubits - 1)), 0},
+    {{0, 1}, 1, 3, 2},
+    {{0, num_qubits - 1}, 3, 1 + (uint64_t{1} << (num_qubits - 1)), 1},
+    {{num_qubits - 2, num_qubits - 1}, 2, (uint64_t{3} << (num_qubits - 2)), 0},
+  };
+
+  std::vector<unsigned> qubits;
+  qubits.reserve(max_gate_qubits);
+
+  uint64_t size = 1 << num_qubits;
+
+  for (const auto& cq : control) {
+    // Test 1-, 2-, ..., max_gate_qubits- qubit target gates.
+    for (unsigned q = 1; q <= max_gate_qubits; ++q) {
+      uint64_t size1 = 1 << q;
+      uint64_t size2 = size1 * size1;
+
+      // "Expanded" control values and control mask.
+      uint64_t ec = bits::ExpandBits(cq.cval, num_qubits, cq.emask);
+      uint64_t mc = bits::ExpandBits(uint64_t(-1), num_qubits, cq.emask);
+
+      matrix.resize(0);
+
+      for (unsigned i = 0; i < 2 * size2; ++i) {
+        matrix.push_back(i + 1);
+      }
+
+      // k is the first target gate qubit.
+      for (unsigned k = cq.minq; k <= cq.minq + max_minq; ++k) {
+        qubits.resize(0);
+
+        // Target gate qbuits are consecuitive from k to k + q - 1.
+        for (unsigned i = 0; i < q; ++i) {
+          qubits.push_back(i + k);
+        }
+
+        uint64_t delta = 42;  // Some random value.
+        uint64_t mask = ((size - 1) ^ (((1 << q) - 1) << k));
+
+        FillMatrix2(unitary_space, unitary, size, delta);
+        simulator.ApplyControlledGate(
+            qubits, cq.qubits, cq.cval, matrix.data(), unitary);
+
+        for (uint64_t i = 0; i < size; ++i) {
+          uint64_t a0 = 2 * i * delta;
+
+          for (uint64_t j = 0; j < size; ++j) {
+            auto a = unitary_space.GetEntry(unitary, i, j);
+
+            if ((j & mc) == ec) {
+              // The target qubit is applied.
+
+              uint64_t s = j & mask;
+              uint64_t l = (j ^ s) >> k;
+
+              // Expected results are calculated analytically.
+              fp_type expected_real =
+                  -fp_type(2 * size2 * l + size1 * (2 * s + a0 + 2)
+                           + (1 + (1 << k)) * (size2 - size1));
+              fp_type expected_imag = -expected_real - size1
+                  + 2 * (size1 * (1 << k) * (size1 - 1)
+                               * (1 + 2 * size1 * (2 + 3 * l))
+                         + 3 * size2 * (1 + 2 * l) * (a0 + 2 * s)) / 3;
+
+              if (test_double) {
+                EXPECT_NEAR(std::real(a), expected_real, 1e-6);
+                EXPECT_NEAR(std::imag(a), expected_imag, 1e-6);
+              } else {
+                // float does not have enough precision to test as above.
+                EXPECT_NEAR(1, std::real(a) / expected_real, 3e-5);
+                EXPECT_NEAR(1, std::imag(a) / expected_imag, 3e-5);
+              }
+            } else {
+              // The target qubit is not applied. Unmodified entries.
+              fp_type expected_real = 2 * i * delta + 2 * j;
+              fp_type expected_imag = expected_real + 1;
+
+              EXPECT_NEAR(std::real(a), expected_real, 1e-6);
+              EXPECT_NEAR(std::imag(a), expected_imag, 1e-6);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+template <typename UnitaryCalculator>
+void TestSmallCircuits() {
+  using UnitarySpace = typename UnitaryCalculator::UnitarySpace;
+  using fp_type = typename UnitaryCalculator::fp_type;
+
+  unsigned max_num_qubits = 5;
+
+  UnitarySpace unitary_space(1);
+  UnitaryCalculator simulator(1);
+
+  std::vector<fp_type> matrix;
+  matrix.reserve(1 << (2 * max_num_qubits + 1));
+
+  std::vector<unsigned> qubits;
+  qubits.reserve(max_num_qubits);
+
+  for (unsigned num_qubits = 1; num_qubits <= max_num_qubits; ++num_qubits) {
+    auto unitary = unitary_space.CreateUnitary(num_qubits);
+
+    unsigned maxq = std::min(num_qubits, 3U);
+    uint64_t size = 1 << num_qubits;
+
+    for (unsigned q = 1; q <= maxq; ++q) {
+      unsigned max_minq = num_qubits - q;
+
+      uint64_t size1 = 1 << q;
+      uint64_t size2 = size1 * size1;
+
+      matrix.resize(0);
+
+      for (unsigned i = 0; i < 2 * size2; ++i) {
+        matrix.push_back(i + 1);
+      }
+
+      // k is the first gate qubit.
+      for (unsigned k = 0; k <= max_minq; ++k) {
+        qubits.resize(0);
+
+        // Gate qbuits are consecuitive from k to k + q - 1.
+        for (unsigned i = 0; i < q; ++i) {
+          qubits.push_back(i + k);
+        }
+
+        uint64_t delta = 42;  // Some random value.
+        uint64_t mask = ((size - 1) ^ (((1 << q) - 1) << k));
+
+        FillMatrix2(unitary_space, unitary, size, delta);
+        simulator.ApplyGate(qubits, matrix.data(), unitary);
+
+        for (uint64_t i = 0; i < size; ++i) {
+          uint64_t a0 = 2 * i * delta;
+
+          for (uint64_t j = 0; j < size; ++j) {
+            uint64_t s = j & mask;
+            uint64_t l = (j ^ s) >> k;
+
+            // Expected results are calculated analytically.
+            fp_type expected_real =
+                -fp_type(2 * size2 * l + size1 * (2 * s + a0 + 2)
+                         + (1 + (1 << k)) * (size2 - size1));
+            fp_type expected_imag = -expected_real - size1
+                + 2 * (size1 * (1 << k) * (size1 - 1)
+                             * (1 + 2 * size1 * (2 + 3 * l))
+                       + 3 * size2 * (1 + 2 * l) * (a0 + 2 * s)) / 3;
+
+            auto a = unitary_space.GetEntry(unitary, i, j);
+
+            EXPECT_NEAR(std::real(a), expected_real, 1e-6);
+            EXPECT_NEAR(std::imag(a), expected_imag, 1e-6);
+          }
+        }
+      }
     }
   }
 }

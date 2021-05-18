@@ -21,6 +21,7 @@ path_to_include=googletest/googletest/include
 path_to_lib=googletest/lib
 
 g++ -O3 -I$path_to_include -L$path_to_lib -o bitstring_test.x bitstring_test.cc -lgtest -lpthread
+g++ -O3 -I$path_to_include -L$path_to_lib -mavx2 -mfma -fopenmp -o channels_cirq_test.x channels_cirq_test.cc -lgtest -lpthread
 g++ -O3 -I$path_to_include -L$path_to_lib -o circuit_qsim_parser_test.x circuit_qsim_parser_test.cc -lgtest -lpthread
 g++ -O3 -I$path_to_include -L$path_to_lib -mavx2 -mfma -fopenmp -o expect_test.x expect_test.cc -lgtest -lpthread
 g++ -O3 -I$path_to_include -L$path_to_lib -o fuser_basic_test.x fuser_basic_test.cc -lgtest -lpthread
@@ -37,5 +38,10 @@ g++ -O3 -I$path_to_include -L$path_to_lib -msse4 -fopenmp -o simulator_sse_test.
 g++ -O3 -I$path_to_include -L$path_to_lib -mavx2 -mfma -fopenmp -o statespace_avx_test.x statespace_avx_test.cc -lgtest -lpthread
 g++ -O3 -I$path_to_include -L$path_to_lib -fopenmp -o statespace_basic_test.x statespace_basic_test.cc -lgtest -lpthread
 g++ -O3 -I$path_to_include -L$path_to_lib -msse4 -fopenmp -o statespace_sse_test.x statespace_sse_test.cc -lgtest -lpthread
+g++ -O3 -I$path_to_include -L$path_to_lib -mavx2 -mfma -fopenmp -o unitary_calculator_avx_test.x unitary_calculator_avx_test.cc -lgtest -lpthread
 g++ -O3 -I$path_to_include -L$path_to_lib -fopenmp -o unitary_calculator_basic_test.x unitary_calculator_basic_test.cc -lgtest -lpthread
+g++ -O3 -I$path_to_include -L$path_to_lib -msse4 -fopenmp -o unitary_calculator_sse_test.x unitary_calculator_sse_test.cc -lgtest -lpthread
+g++ -O3 -I$path_to_include -L$path_to_lib -mavx2 -mfma -fopenmp -o unitaryspace_avx_test.x unitaryspace_avx_test.cc -lgtest -lpthread
 g++ -O3 -I$path_to_include -L$path_to_lib -fopenmp -o unitaryspace_basic_test.x unitaryspace_basic_test.cc -lgtest -lpthread
+g++ -O3 -I$path_to_include -L$path_to_lib -msse4 -fopenmp -o unitaryspace_sse_test.x unitaryspace_sse_test.cc -lgtest -lpthread
+g++ -O3 -I$path_to_include -L$path_to_lib -o vectorspace_test.x vectorspace_test.cc -lgtest -lpthread
